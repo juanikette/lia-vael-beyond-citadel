@@ -4,7 +4,7 @@ This folder is the source of truth for project direction, narrative rules, and i
 
 ## Recommended reading order
 
-1. `scope.md` — project goals, intended experience, and out-of-scope boundaries
+1. `../README.md` — project overview, core goal, scope boundaries, and narrative intent
 2. `design-principles.md` — lore consistency and narrative design principles
 3. `phase-order.md` — implementation sequence by phase
 4. `constraints.md` — hard "do not" rules and technical guardrails

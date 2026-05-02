@@ -10,7 +10,7 @@ Use this file as the **operational entry point** for AI agents.
 ## Read First
 
 1. `docs/README.md`
-2. `docs/scope.md`
+2. `README.md` (project overview, scope boundaries, and narrative intent)
 3. `docs/design-principles.md`
 4. `docs/phase-order.md`
 5. `docs/constraints.md`
