@@ -1,72 +1,49 @@
 # Narrative Guidelines
 
-## Normandy Engineering Dynamics (Lia + Crew)
+Role ownership and interaction weighting are defined in `character-role-rules.md`.  
+This file focuses on **tone, line delivery, and scene feel**.
 
-On the Normandy SR-2, the two main human engineers are:
+## Voice and Tone Targets
 
-- Gabby Daniels
-- Kenneth Donnelly
+- Keep dialogue concise and in-character for ME2.
+- Favor subtext over explicit emotional exposition.
+- Avoid melodrama and over-validation lines.
+- Keep banter sharp, professional, and situational.
 
-And for Lia, the primary quarian reference point is:
+## Lia Voice Notes
 
-- Tali'Zorah
+- nervous but composed
+- cautious, not passive
+- grateful without sounding dependent
+- technically aware when speaking about engineering work
 
-### ⚠️ Typical mistake to avoid
+## Scene Rhythm
 
-Do not apply a "new character = interacts equally with everyone" approach.
+For short Normandy beats, aim for a 3-step rhythm:
 
-That usually creates:
+1. friction or pressure
+2. grounding response
+3. forward motion
 
-- forced dialogue
-- redundancy
-- a fanfic-like tone
+This keeps scenes moving and avoids static "everyone agrees" exchanges.
 
-### Key rule
+## Dialogue Quality Checks
 
-**Not everyone should interact with Lia in the same way.**  
-Each character should serve a distinct narrative role.
+Before finalizing lines, verify:
 
-### Recommended interaction split
+- each speaker sounds distinct
+- at least one line advances relationship or trust
+- technical references feel natural (not wiki-like)
+- emotional beats stay subtle and earned
 
-#### 🟣 Tali — Emotional core (**mandatory**)
-- mentor role
-- quarian cultural connection
-- narrative mirror
+## Example Tone Slice (ME2-like)
 
-> About 70% of the emotional weight should live here.
-
-#### 🟡 Gabby — Professional clarity
-- professional
-- clear and direct
-- corrects others (especially Ken)
-- open, but not emotionally exaggerated
-
-> With Lia, Gabby evaluates her as an engineer, not as someone to pity.
-
-#### 🔴 Ken — Friction, humor, and realism
-- jokey
-- slightly inappropriate
-- unfiltered remarks
-- respect grows when he sees real competence
-
-> With Lia, the arc is: jokes/doubt first, respect after she proves skill.
-
-### Minimal dynamic example (tone target)
-
-- Lia arrives nervous
 - Ken: "Another quarian engineer, eh? Shepard's got a type."
 - Gabby: "Ignore him. If you can keep up with the drive core, you're welcome here."
-- Tali steps in and backs Lia
+- Lia: "I can. Just point me where I'm needed."
 
-In just a few lines, this should establish:
+Intent:
 
-- conflict
-- support
-- team dynamic
-- workplace tone
-
-### Why this matters
-
-This split enables **organic integration** on the Normandy.  
-Lia should feel like a character who could always have been there, not like an NPC layered on top.  
-Tali carries the emotional axis; Gabby/Ken should read as **workplace environment**, not mentors or emotional anchors.
+- establish workplace friction
+- show practical acceptance
+- let Lia demonstrate resolve through competence
