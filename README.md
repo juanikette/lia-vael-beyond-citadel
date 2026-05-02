@@ -2,6 +2,8 @@
 
 A narrative expansion mod for Mass Effect 2 that gives Lia'Vael a second chance beyond the Citadel.
 
+![Lia'Vael draft representation](assets/draft.png)
+
 ## Project Overview
 
 This project extends **Lia'Vael**, a minor quarian NPC on the Citadel (Zakera Ward), by:
