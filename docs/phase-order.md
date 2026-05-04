@@ -2,32 +2,32 @@
 
 Follow this sequence strictly.
 
-## Phase 1 — Citadel Expansion
+## Phase 1 — Citadel Technical MVP
 
-- Citadel scene
-- Shepard's decision
-- narrative continuity setup
-- recruitment hook
+- modify one existing Lia Citadel conversation
+- add one new functional dialogue line/branch
+- gate it behind one simple condition (mission-state/flag)
+- confirm no scene breakage and keep implementation repeatable
 
-## Phase 2 — Tali Integration
+## Phase 2 — Citadel Hardening
 
-- Lia's arrival on the Normandy
-- 1 simple dialogue with Tali
-- establish a basic narrative bridge
+- add one small follow-up variation to the MVP conversation
+- stabilize condition flow and fallback dialogue paths
+- keep scope local to Citadel while technical confidence grows
 
-## Phase 3 — Normandy Integration
+## Phase 3 — Tali Bridge
 
-- initial interaction with Gabby and Ken
-- light crew friction/contrast
-- Lia positioned as a static engineering NPC
+- introduce a minimal narrative bridge toward Tali
+- add one simple progression-linked Tali interaction
+- preserve additive behavior and avoid replacing base content
 
-## Phase 4 — Progressive Dialogue
+## Phase 4 — Normandy Integration and Progressive Dialogue
 
-- progressive dialogue system
-- relationship development over time (especially with Tali)
-- gradual expansion with Gabby/Ken without making them the main axis
+- place Lia on the Normandy as a static engineering NPC
+- add initial Gabby/Ken interaction with low intrusion
+- expand progressive dialogue over time (Tali as the main axis)
 
 ## Priority Rule
 
-Do **not** force Gabby/Ken interaction work into Phase 1.  
-First make Lia's presence on the Normandy make sense, then expand impact.
+Do **not** start Normandy presence work before the Citadel technical MVP is proven.  
+First establish one stable, conditioned dialogue end-to-end, then scale scope.
