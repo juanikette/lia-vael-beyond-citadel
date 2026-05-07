@@ -450,13 +450,17 @@ def test_phase3_struct_head_mode_mapping(tmp_path: Path) -> None:
 
     package = read_pcc(pcc_path)
     row = package.parse_bioconversation_stubs()[0]
-    assert row["parse_mode"] == "row_payload_struct_head"
+    assert row["parse_mode"] == "row_payload_struct_matrix"
     assert row["warnings"] == []
     assert [entry["id"] for entry in row["entries"]] == [300, 301]
     assert [entry["speaker_id"] for entry in row["entries"]] == [30, 31]
+    assert [entry["listener_tag"] for entry in row["entries"]] == [None, None]
     assert [reply["target_entry_id"] for reply in row["replies"]] == [300, 301]
+    assert row["replies"][0]["condition_refs"] == ["cond_i32:2221"]
+    assert row["replies"][1]["condition_refs"] == ["cond_i32:2222"]
     assert [speaker["tag"] for speaker in row["speakers"]] == ["SPK_Edi", "SPK_Edi"]
+    assert [speaker["display_name"] for speaker in row["speakers"]] == ["strref:7300", "strref:7301"]
 
     dump = package.inspect_bioconversation_row_payloads()[0]
-    assert dump["used_struct_head"] is True
+    assert dump["used_struct_matrix"] is True
     assert dump["array_layouts"]["EntryList"]["bytes_per_item"] == 16

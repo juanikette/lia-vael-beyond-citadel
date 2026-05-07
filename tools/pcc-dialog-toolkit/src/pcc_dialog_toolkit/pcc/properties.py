@@ -189,3 +189,24 @@ def read_array_property_struct_head_i32(data: bytes, tag: PropertyTag, *, head_i
         item_start = payload_start + (i * stride)
         rows.append([_read_i32(data, item_start + (j * 4)) for j in range(head_i32)])
     return rows
+
+
+def read_array_property_struct_i32_matrix(data: bytes, tag: PropertyTag) -> list[list[int]]:
+    info = analyze_array_property_layout(data, tag)
+    if info.count <= 0 or info.bytes_per_item is None:
+        return []
+    if info.remainder != 0:
+        return []
+    if info.bytes_per_item % 4 != 0:
+        return []
+
+    width = info.bytes_per_item // 4
+    if width <= 0:
+        return []
+
+    rows: list[list[int]] = []
+    payload_start = tag.value_offset + 4
+    for i in range(info.count):
+        item_start = payload_start + (i * info.bytes_per_item)
+        rows.append([_read_i32(data, item_start + (j * 4)) for j in range(width)])
+    return rows
