@@ -463,6 +463,30 @@ def test_phase3_row_payload_dump_empty_for_non_tight_i32_arrays(tmp_path: Path) 
     assert row["array_layouts"]["EntryList"]["is_tight_i32"] is True
 
 
+def test_phase3_cli_validate_stub_json(tmp_path: Path) -> None:
+    pcc_path = tmp_path / "sample_validate_cli.pcc"
+    pcc_path.write_bytes(_build_pcc_with_bioconv_row_payloads())
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pcc_dialog_toolkit",
+            str(pcc_path),
+            "--validate-bioconversation-stubs",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    payload = result.stdout.splitlines()[-1]
+    rows = json.loads(payload)
+    assert len(rows) == 1
+    assert rows[0]["is_valid"] is True
+
+
 def test_phase3_struct_head_mode_mapping(tmp_path: Path) -> None:
     pcc_path = tmp_path / "sample_struct_items.pcc"
     pcc_path.write_bytes(_build_pcc_with_bioconv_struct_items())
@@ -483,3 +507,25 @@ def test_phase3_struct_head_mode_mapping(tmp_path: Path) -> None:
     dump = package.inspect_bioconversation_row_payloads()[0]
     assert dump["used_struct_matrix"] is True
     assert dump["array_layouts"]["EntryList"]["bytes_per_item"] == 16
+
+
+def test_phase3_stub_validation_report(tmp_path: Path) -> None:
+    pcc_path = tmp_path / "sample_validate_ok.pcc"
+    pcc_path.write_bytes(_build_pcc_with_bioconv_row_payloads())
+
+    package = read_pcc(pcc_path)
+    report = package.validate_bioconversation_stubs()
+    assert len(report) == 1
+    assert report[0]["is_valid"] is True
+    assert report[0]["issues"] == []
+
+
+def test_phase3_stub_validation_report_with_issue(tmp_path: Path) -> None:
+    pcc_path = tmp_path / "sample_validate_bad.pcc"
+    pcc_path.write_bytes(_build_pcc_with_bioconv_row_payloads_missing_target())
+
+    package = read_pcc(pcc_path)
+    report = package.validate_bioconversation_stubs()
+    assert len(report) == 1
+    assert report[0]["is_valid"] is False
+    assert "reply_target_missing:200->999" in report[0]["issues"]

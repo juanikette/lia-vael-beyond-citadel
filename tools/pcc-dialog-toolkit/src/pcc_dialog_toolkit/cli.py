@@ -41,6 +41,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Vuelca filas bootstrap detectadas para Entry/Reply/Speaker",
     )
+    parser.add_argument(
+        "--validate-bioconversation-stubs",
+        action="store_true",
+        help="Valida consistencia interna de AST stubs por conversacion",
+    )
     parser.add_argument("--version", action="store_true", help="Muestra la version actual")
     return parser
 
@@ -118,4 +123,11 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(payloads, indent=2, ensure_ascii=False))
         else:
             print(json.dumps(payloads, ensure_ascii=False))
+
+    if args.validate_bioconversation_stubs:
+        report = package.validate_bioconversation_stubs()
+        if args.pretty:
+            print(json.dumps(report, indent=2, ensure_ascii=False))
+        else:
+            print(json.dumps(report, ensure_ascii=False))
     return 0

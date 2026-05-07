@@ -126,3 +126,8 @@ class PccPackage:
         from pcc_dialog_toolkit.dialogue import inspect_bioconversation_row_payloads
 
         return inspect_bioconversation_row_payloads(self)
+
+    def validate_bioconversation_stubs(self) -> list[dict[str, object]]:
+        from pcc_dialog_toolkit.dialogue import validate_all_bioconversation_stubs
+
+        return validate_all_bioconversation_stubs(self)

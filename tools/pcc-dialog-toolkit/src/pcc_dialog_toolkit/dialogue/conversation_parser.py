@@ -250,6 +250,51 @@ def parse_all_bioconversation_stubs(package: PccPackage) -> list[Conversation]:
     return rows
 
 
+def validate_bioconversation_stub(stub: Conversation) -> list[str]:
+    issues: list[str] = []
+
+    entry_ids = {entry.id for entry in stub.entries}
+    reply_ids = {reply.id for reply in stub.replies}
+    speaker_ids = {speaker.id for speaker in stub.speakers}
+
+    if len(entry_ids) != len(stub.entries):
+        issues.append("duplicate_entry_ids")
+    if len(reply_ids) != len(stub.replies):
+        issues.append("duplicate_reply_ids")
+    if len(speaker_ids) != len(stub.speakers):
+        issues.append("duplicate_speaker_ids")
+
+    for entry in stub.entries:
+        if entry.speaker_id is not None and entry.speaker_id not in speaker_ids:
+            issues.append(f"entry_speaker_missing:{entry.id}->{entry.speaker_id}")
+        for reply_id in entry.reply_links:
+            if reply_id not in reply_ids:
+                issues.append(f"entry_reply_link_missing:{entry.id}->{reply_id}")
+
+    for reply in stub.replies:
+        if reply.target_entry_id is not None and reply.target_entry_id not in entry_ids:
+            issues.append(f"reply_target_missing:{reply.id}->{reply.target_entry_id}")
+
+    return sorted(set(issues))
+
+
+def validate_all_bioconversation_stubs(package: PccPackage) -> list[dict[str, object]]:
+    reports: list[dict[str, object]] = []
+    for stub in parse_all_bioconversation_stubs(package):
+        issues = validate_bioconversation_stub(stub)
+        reports.append(
+            {
+                "id": stub.id,
+                "export_index": stub.export_index,
+                "game_profile": stub.game_profile,
+                "parse_mode": stub.parse_mode,
+                "issues": issues,
+                "is_valid": len(issues) == 0,
+            }
+        )
+    return reports
+
+
 def inspect_bioconversation_row_payloads(package: PccPackage) -> list[dict[str, object]]:
     report: list[dict[str, object]] = []
     for export in package.iter_exports(class_name="BioConversation"):
