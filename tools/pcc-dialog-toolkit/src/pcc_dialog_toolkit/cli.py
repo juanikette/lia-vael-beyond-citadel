@@ -36,6 +36,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Genera AST stub de conversaciones BioConversation",
     )
+    parser.add_argument(
+        "--dump-bioconversation-row-payloads",
+        action="store_true",
+        help="Vuelca filas bootstrap detectadas para Entry/Reply/Speaker",
+    )
     parser.add_argument("--version", action="store_true", help="Muestra la version actual")
     return parser
 
@@ -106,4 +111,11 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(conversations, indent=2, ensure_ascii=False))
         else:
             print(json.dumps(conversations, ensure_ascii=False))
+
+    if args.dump_bioconversation_row_payloads:
+        payloads = package.inspect_bioconversation_row_payloads()
+        if args.pretty:
+            print(json.dumps(payloads, indent=2, ensure_ascii=False))
+        else:
+            print(json.dumps(payloads, ensure_ascii=False))
     return 0

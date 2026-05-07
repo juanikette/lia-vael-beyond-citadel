@@ -156,3 +156,20 @@ def parse_all_bioconversation_stubs(package: PccPackage) -> list[Conversation]:
     for export in package.iter_exports(class_name="BioConversation"):
         rows.append(parse_bioconversation_stub(package, export))
     return rows
+
+
+def inspect_bioconversation_row_payloads(package: PccPackage) -> list[dict[str, object]]:
+    report: list[dict[str, object]] = []
+    for export in package.iter_exports(class_name="BioConversation"):
+        entry_rows, reply_rows, speaker_rows = _conversation_row_arrays(package, export)
+        report.append(
+            {
+                "id": export.object_name or f"Export_{export.index}",
+                "export_index": export.index,
+                "entry_rows": entry_rows,
+                "reply_rows": reply_rows,
+                "speaker_rows": speaker_rows,
+                "row_payload_complete": bool(entry_rows and reply_rows and speaker_rows),
+            }
+        )
+    return report

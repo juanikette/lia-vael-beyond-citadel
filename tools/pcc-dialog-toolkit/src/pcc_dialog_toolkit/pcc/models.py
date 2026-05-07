@@ -108,3 +108,8 @@ class PccPackage:
         from pcc_dialog_toolkit.dialogue import parse_all_bioconversation_stubs
 
         return [item.to_dict() for item in parse_all_bioconversation_stubs(self)]
+
+    def inspect_bioconversation_row_payloads(self) -> list[dict[str, object]]:
+        from pcc_dialog_toolkit.dialogue import inspect_bioconversation_row_payloads
+
+        return inspect_bioconversation_row_payloads(self)

@@ -309,3 +309,29 @@ def test_phase3_stub_warns_on_missing_target(tmp_path: Path) -> None:
     row = package.parse_bioconversation_stubs()[0]
     assert row["parse_mode"] == "row_payload"
     assert row["warnings"] == ["reply_target_missing_entry:200->999"]
+
+
+def test_phase3_cli_dump_row_payloads_json(tmp_path: Path) -> None:
+    pcc_path = tmp_path / "sample_rows_cli.pcc"
+    pcc_path.write_bytes(_build_pcc_with_bioconv_row_payloads())
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pcc_dialog_toolkit",
+            str(pcc_path),
+            "--dump-bioconversation-row-payloads",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    payload = result.stdout.splitlines()[-1]
+    rows = json.loads(payload)
+    assert len(rows) == 1
+    assert rows[0]["id"] == "Conv_RowPayload"
+    assert rows[0]["row_payload_complete"] is True
+    assert rows[0]["entry_rows"][0] == [100, 1, 5000]
