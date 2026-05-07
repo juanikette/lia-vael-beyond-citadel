@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from pcc_dialog_toolkit.pcc import PccFormatError, read_pcc
+
 
 GAMES = ("me1", "me2", "me3", "le1", "le2", "le3")
 
@@ -38,5 +40,21 @@ def main(argv: list[str] | None = None) -> int:
     if not input_path.exists():
         parser.error(f"No existe el archivo PCC: {input_path}")
 
-    print("MVP en progreso: fase de extraccion aun no implementada.")
+    try:
+        package = read_pcc(input_path)
+    except PccFormatError as exc:
+        parser.exit(status=2, message=f"Error leyendo PCC: {exc}\n")
+
+    print(f"PCC: {input_path}")
+    print(
+        "Header: "
+        f"unreal={package.header.unreal_version} "
+        f"licensee={package.header.licensee_version}"
+    )
+    print(
+        "Tables: "
+        f"names={len(package.names)} "
+        f"imports={len(package.imports)} "
+        f"exports={len(package.exports)}"
+    )
     return 0

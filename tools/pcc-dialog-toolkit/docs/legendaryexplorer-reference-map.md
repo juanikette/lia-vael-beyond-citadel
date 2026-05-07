@@ -22,3 +22,9 @@ Al cerrar cada fase, agregar aqui:
 - archivo/clase de LEX consultada,
 - decision tomada en toolkit,
 - diferencia relevante OT vs LE detectada (si aplica).
+
+## Fase 1
+
+- Archivo/clase LEX consultada: `LegendaryExplorerCore/Packages/MEPackage.cs`.
+- Decision toolkit: mantener parseo defensivo minimo para header y tablas base, sin lazy-load ni soporte de compresion en esta fase.
+- Diferencia OT vs LE detectada: formato de header comparte offsets base para names/imports/exports; las variaciones de plataforma/compresion se posponen para fases siguientes.
