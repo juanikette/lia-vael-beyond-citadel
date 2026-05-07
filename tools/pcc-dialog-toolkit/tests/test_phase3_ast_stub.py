@@ -335,3 +335,17 @@ def test_phase3_cli_dump_row_payloads_json(tmp_path: Path) -> None:
     assert rows[0]["id"] == "Conv_RowPayload"
     assert rows[0]["row_payload_complete"] is True
     assert rows[0]["entry_rows"][0] == [100, 1, 5000]
+
+
+def test_phase3_row_payload_dump_empty_for_non_tight_i32_arrays(tmp_path: Path) -> None:
+    pcc_path = tmp_path / "sample_non_tight.pcc"
+    pcc_path.write_bytes(_build_pcc_with_bioconv_properties())
+
+    package = read_pcc(pcc_path)
+    rows = package.inspect_bioconversation_row_payloads()
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["row_payload_complete"] is False
+    assert row["entry_rows"] == []
+    assert row["reply_rows"] == []
+    assert row["speaker_rows"] == [[3, 4, 5]]

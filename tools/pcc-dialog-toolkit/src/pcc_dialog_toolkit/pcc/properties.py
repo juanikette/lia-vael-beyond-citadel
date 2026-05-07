@@ -104,7 +104,10 @@ def read_array_property_i32_values(data: bytes, tag: PropertyTag) -> list[int]:
 
     if count < 0:
         raise PccFormatError(f"ArrayProperty con longitud negativa: {tag.name}")
-    if payload_size < expected_size:
+    # Strict mode: only accept tightly packed i32 arrays.
+    # If payload contains extra data, it likely represents struct/object rows
+    # and should be handled by a dedicated parser.
+    if payload_size != expected_size:
         return []
 
     values: list[int] = []
