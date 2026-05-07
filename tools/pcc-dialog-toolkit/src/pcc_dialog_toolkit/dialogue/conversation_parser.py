@@ -5,6 +5,7 @@ from pcc_dialog_toolkit.pcc.models import ExportEntry, PccPackage
 from pcc_dialog_toolkit.pcc.properties import (
     extract_bioconversation_key_properties,
     read_array_property_count,
+    read_array_property_i32_rows,
     read_array_property_i32_values,
 )
 
@@ -27,46 +28,101 @@ def _conversation_arrays(package: PccPackage, export: ExportEntry) -> tuple[list
     return entry_values, reply_values, speaker_values
 
 
+def _conversation_row_arrays(
+    package: PccPackage,
+    export: ExportEntry,
+) -> tuple[list[list[int]], list[list[int]], list[list[int]]]:
+    tags = extract_bioconversation_key_properties(package.raw_data, package.names, export)
+    mapped = {tag.name: tag for tag in tags}
+
+    # Bootstrap schema used while full struct parsing is pending:
+    # EntryList rows: [id, speaker_id, line_strref]
+    # ReplyList rows: [id, target_entry_id, line_strref]
+    # SpeakerList rows: [id, tag_name_index, display_name_strref]
+    entry_rows = read_array_property_i32_rows(package.raw_data, mapped["EntryList"], item_width=3) if "EntryList" in mapped else []
+    reply_rows = read_array_property_i32_rows(package.raw_data, mapped["ReplyList"], item_width=3) if "ReplyList" in mapped else []
+    speaker_rows = read_array_property_i32_rows(package.raw_data, mapped["SpeakerList"], item_width=3) if "SpeakerList" in mapped else []
+    return entry_rows, reply_rows, speaker_rows
+
+
 def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conversation:
     entry_count, reply_count, speaker_count = _conversation_counts(package, export)
     entry_values, reply_values, speaker_values = _conversation_arrays(package, export)
+    entry_rows, reply_rows, speaker_rows = _conversation_row_arrays(package, export)
+    row_mode = bool(entry_rows and reply_rows and speaker_rows)
 
     entry_ids = entry_values if len(entry_values) == entry_count else list(range(entry_count))
     reply_targets = reply_values if len(reply_values) == reply_count else [i if i < entry_count else -1 for i in range(reply_count)]
     speaker_ids = speaker_values if len(speaker_values) == speaker_count else list(range(speaker_count))
 
-    entries = [
-        EntryNode(
-            id=i,
-            speaker_id=None,
-            speaker_tag=None,
-            listener_tag=None,
-            line_strref=None,
-            line_text=None,
-            reply_links=[],
-        )
-        for i in entry_ids
-    ]
+    if row_mode:
+        entries = [
+            EntryNode(
+                id=row[0],
+                speaker_id=row[1] if row[1] >= 0 else None,
+                speaker_tag=None,
+                listener_tag=None,
+                line_strref=row[2] if row[2] >= 0 else None,
+                line_text=None,
+                reply_links=[],
+            )
+            for row in entry_rows
+        ]
+    else:
+        entries = [
+            EntryNode(
+                id=i,
+                speaker_id=None,
+                speaker_tag=None,
+                listener_tag=None,
+                line_strref=None,
+                line_text=None,
+                reply_links=[],
+            )
+            for i in entry_ids
+        ]
 
-    replies = [
-        ReplyNode(
-            id=i,
-            line_strref=None,
-            line_text=None,
-            target_entry_id=target if target >= 0 else None,
-            condition_refs=[],
-        )
-        for i, target in enumerate(reply_targets)
-    ]
+    if row_mode:
+        replies = [
+            ReplyNode(
+                id=row[0],
+                line_strref=row[2] if row[2] >= 0 else None,
+                line_text=None,
+                target_entry_id=row[1] if row[1] >= 0 else None,
+                condition_refs=[],
+            )
+            for row in reply_rows
+        ]
+    else:
+        replies = [
+            ReplyNode(
+                id=i,
+                line_strref=None,
+                line_text=None,
+                target_entry_id=target if target >= 0 else None,
+                condition_refs=[],
+            )
+            for i, target in enumerate(reply_targets)
+        ]
 
-    speakers = [
-        Speaker(
-            id=i,
-            tag=None,
-            display_name=None,
-        )
-        for i in speaker_ids
-    ]
+    if row_mode:
+        speakers = [
+            Speaker(
+                id=row[0],
+                tag=package.names[row[1]].text if 0 <= row[1] < len(package.names) else None,
+                display_name=None,
+            )
+            for row in speaker_rows
+        ]
+    else:
+        speakers = [
+            Speaker(
+                id=i,
+                tag=None,
+                display_name=None,
+            )
+            for i in speaker_ids
+        ]
 
     links_by_entry: dict[int, list[int]] = {entry.id: [] for entry in entries}
     for reply in replies:

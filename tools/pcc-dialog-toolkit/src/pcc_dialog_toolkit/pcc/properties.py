@@ -113,3 +113,20 @@ def read_array_property_i32_values(data: bytes, tag: PropertyTag) -> list[int]:
         values.append(_read_i32(data, cursor))
         cursor += 4
     return values
+
+
+def read_array_property_i32_rows(data: bytes, tag: PropertyTag, *, item_width: int) -> list[list[int]]:
+    if item_width <= 0:
+        raise PccFormatError(f"item_width invalido para array: {item_width}")
+
+    values = read_array_property_i32_values(data, tag)
+    expected = len(values)
+    if expected % item_width != 0:
+        return []
+
+    rows: list[list[int]] = []
+    cursor = 0
+    while cursor < expected:
+        rows.append(values[cursor : cursor + item_width])
+        cursor += item_width
+    return rows

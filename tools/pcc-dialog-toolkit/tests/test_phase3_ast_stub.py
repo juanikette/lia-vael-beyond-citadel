@@ -84,6 +84,83 @@ def _build_pcc_with_bioconv_properties() -> bytes:
     return bytes(data)
 
 
+def _build_pcc_with_bioconv_row_payloads() -> bytes:
+    names = [
+        "Core",
+        "Class",
+        "BioConversation",
+        "Conv_RowPayload",
+        "EntryList",
+        "ReplyList",
+        "SpeakerList",
+        "ArrayProperty",
+        "None",
+        "SPK_Joker",
+    ]
+    name_table = b"".join(_u_string(name) + struct.pack("<i", 0) for name in names)
+
+    import_entry = struct.pack("<iiiiiii", 0, 0, 1, 0, 0, 2, 0)
+
+    # EntryList rows: [id, speaker_id, line_strref] -> 2 rows
+    entry_values = [100, 1, 5000, 101, 2, 5001]
+    # ReplyList rows: [id, target_entry_id, line_strref] -> 2 rows
+    reply_values = [200, 100, 6000, 201, 101, 6001]
+    # SpeakerList rows: [id, tag_name_index, display_name_strref] -> 2 rows
+    speaker_values = [1, 9, 7000, 2, 9, 7001]
+
+    prop_blob = bytearray()
+    prop_blob.extend(_prop_tag(4, 7, 4 + len(entry_values) * 4))
+    prop_blob.extend(struct.pack("<ii", 7, 0))
+    prop_blob.extend(struct.pack("<i", len(entry_values)))
+    for value in entry_values:
+        prop_blob.extend(struct.pack("<i", value))
+
+    prop_blob.extend(_prop_tag(5, 7, 4 + len(reply_values) * 4))
+    prop_blob.extend(struct.pack("<ii", 7, 0))
+    prop_blob.extend(struct.pack("<i", len(reply_values)))
+    for value in reply_values:
+        prop_blob.extend(struct.pack("<i", value))
+
+    prop_blob.extend(_prop_tag(6, 7, 4 + len(speaker_values) * 4))
+    prop_blob.extend(struct.pack("<ii", 7, 0))
+    prop_blob.extend(struct.pack("<i", len(speaker_values)))
+    for value in speaker_values:
+        prop_blob.extend(struct.pack("<i", value))
+
+    prop_blob.extend(struct.pack("<ii", 8, 0))
+
+    header_size = 64
+    name_offset = header_size
+    import_offset = name_offset + len(name_table)
+    export_offset = import_offset + len(import_entry)
+    serial_offset = export_offset + 68
+
+    export_header = bytearray(68)
+    struct.pack_into("<i", export_header, 0, -1)
+    struct.pack_into("<i", export_header, 4, 0)
+    struct.pack_into("<i", export_header, 8, 0)
+    struct.pack_into("<i", export_header, 12, 3)
+    struct.pack_into("<i", export_header, 32, len(prop_blob))
+    struct.pack_into("<i", export_header, 36, serial_offset)
+
+    data = bytearray(header_size)
+    struct.pack_into("<I", data, 0, 0x9E2A83C1)
+    packed_version = ((130 & 0xFFFF) << 16) | (512 & 0xFFFF)
+    struct.pack_into("<I", data, 4, packed_version)
+    struct.pack_into("<i", data, 20, len(names))
+    struct.pack_into("<i", data, 24, name_offset)
+    struct.pack_into("<i", data, 28, 1)
+    struct.pack_into("<i", data, 32, export_offset)
+    struct.pack_into("<i", data, 36, 1)
+    struct.pack_into("<i", data, 40, import_offset)
+
+    data.extend(name_table)
+    data.extend(import_entry)
+    data.extend(export_header)
+    data.extend(prop_blob)
+    return bytes(data)
+
+
 def test_phase3_stub_ast_counts(tmp_path: Path) -> None:
     pcc_path = tmp_path / "sample_ast.pcc"
     pcc_path.write_bytes(_build_pcc_with_bioconv_properties())
@@ -125,3 +202,22 @@ def test_phase3_cli_dump_stub_json(tmp_path: Path) -> None:
     rows = json.loads(payload)
     assert len(rows) == 1
     assert rows[0]["id"] == "Conv_Test"
+
+
+def test_phase3_stub_ast_row_payload_mapping(tmp_path: Path) -> None:
+    pcc_path = tmp_path / "sample_rows.pcc"
+    pcc_path.write_bytes(_build_pcc_with_bioconv_row_payloads())
+
+    package = read_pcc(pcc_path)
+    rows = package.parse_bioconversation_stubs()
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["id"] == "Conv_RowPayload"
+    assert [item["id"] for item in row["entries"]] == [100, 101]
+    assert [item["speaker_id"] for item in row["entries"]] == [1, 2]
+    assert [item["line_strref"] for item in row["entries"]] == [5000, 5001]
+    assert [item["id"] for item in row["replies"]] == [200, 201]
+    assert [item["target_entry_id"] for item in row["replies"]] == [100, 101]
+    assert [item["line_strref"] for item in row["replies"]] == [6000, 6001]
+    assert [item["id"] for item in row["speakers"]] == [1, 2]
+    assert [item["tag"] for item in row["speakers"]] == ["SPK_Joker", "SPK_Joker"]
