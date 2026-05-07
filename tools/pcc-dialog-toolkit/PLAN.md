@@ -4,6 +4,19 @@
 
 Nombre seleccionado: **pcc-dialog-toolkit**
 
+## Fuente de conocimiento externa (obligatoria)
+
+Repositorio de referencia para procesos y validacion tecnica:
+
+- https://github.com/ME3Tweaks/LegendaryExplorer/
+
+Regla de uso durante implementacion:
+
+- Consultar LegendaryExplorer antes de cerrar cada fase que toque parseo de PCC/TLK.
+- Priorizar nomenclatura, orden de lectura y comportamiento observables en herramientas maduras.
+- No copiar codigo de forma ciega: usarlo como guia de formato, casos borde y verificacion.
+- Registrar en notas de fase que archivos/clases de LegendaryExplorer se usaron como referencia.
+
 ## Objetivo MVP
 
 Implementar un CLI llamado `pcc_dialog_extract` que:
