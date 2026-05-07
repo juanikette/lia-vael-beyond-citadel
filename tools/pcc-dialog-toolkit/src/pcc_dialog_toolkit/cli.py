@@ -25,6 +25,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Lista exports BioConversation con metadata minima",
     )
+    parser.add_argument(
+        "--inspect-bioconversation-properties",
+        action="store_true",
+        help="Inspecciona propiedades clave de BioConversation (EntryList/ReplyList/SpeakerList)",
+    )
     parser.add_argument("--version", action="store_true", help="Muestra la version actual")
     return parser
 
@@ -73,4 +78,19 @@ def main(argv: list[str] | None = None) -> int:
                 f"offset={row['offset']} "
                 f"size={row['size']}"
             )
+
+    if args.inspect_bioconversation_properties:
+        rows = package.inspect_bioconversation_properties()
+        print(f"BioConversation property-inspection exports: {len(rows)}")
+        for row in rows:
+            print(f"- idx={row['index']} name={row['name']}")
+            for prop in row["properties"]:
+                print(
+                    "  "
+                    f"prop={prop['name']} "
+                    f"type={prop['type']} "
+                    f"size={prop['size']} "
+                    f"array_index={prop['array_index']} "
+                    f"value_offset={prop['value_offset']}"
+                )
     return 0

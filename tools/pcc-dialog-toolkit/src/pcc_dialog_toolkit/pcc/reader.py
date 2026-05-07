@@ -177,6 +177,7 @@ def read_pcc(path: str | Path) -> PccPackage:
         exp.class_name = _resolve_export_class_name(exp, exports, imports, names)
 
     return PccPackage(
+        raw_data=data,
         path=str(p),
         header=header,
         names=names,

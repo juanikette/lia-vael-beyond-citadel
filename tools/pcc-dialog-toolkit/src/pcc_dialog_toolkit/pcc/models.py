@@ -46,6 +46,7 @@ class ExportEntry:
 
 @dataclass(slots=True)
 class PccPackage:
+    raw_data: bytes
     path: str
     header: PccHeader
     names: list[NameEntry]
@@ -72,6 +73,30 @@ class PccPackage:
                     "class": item.class_name,
                     "offset": item.serial_offset,
                     "size": item.serial_size,
+                }
+            )
+        return rows
+
+    def inspect_bioconversation_properties(self) -> list[dict[str, object]]:
+        from .properties import extract_bioconversation_key_properties
+
+        rows: list[dict[str, object]] = []
+        for item in self.iter_exports(class_name="BioConversation"):
+            key_tags = extract_bioconversation_key_properties(self.raw_data, self.names, item)
+            rows.append(
+                {
+                    "name": item.object_name,
+                    "index": item.index,
+                    "properties": [
+                        {
+                            "name": tag.name,
+                            "type": tag.prop_type,
+                            "size": tag.size,
+                            "array_index": tag.array_index,
+                            "value_offset": tag.value_offset,
+                        }
+                        for tag in key_tags
+                    ],
                 }
             )
         return rows

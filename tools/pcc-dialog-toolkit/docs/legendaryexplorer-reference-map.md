@@ -34,3 +34,9 @@ Al cerrar cada fase, agregar aqui:
 - Archivo/clase LEX consultada: `LegendaryExplorerCore/Packages/MEPackage.cs` y `LegendaryExplorerCore/Packages/ImportEntry.cs`.
 - Decision toolkit: detectar `BioConversation` resolviendo el `class_index` de export hacia import y mapeando `object_name`/`class_name` con la name table.
 - Diferencia OT vs LE detectada: para la deteccion por clase, la logica de indices import/export aplicada en Fase 2 se mantiene estable en los perfiles validados (ME2 OT y LE2).
+
+## Fase 3 (bootstrap)
+
+- Archivo/clase LEX consultada: `LegendaryExplorerCore/Packages/MEPackage.cs` (lectura de export data y estructura de property stream a alto nivel).
+- Decision toolkit: parser minimo de property tags para inspeccionar `EntryList`, `ReplyList`, `SpeakerList` antes de construir AST completo.
+- Diferencia OT vs LE detectada: en este bootstrap, el framing base del property tag usado para arrays funciona en fixtures ME2 OT; validacion adicional sobre muestras LE2 reales queda para cierre formal de fase.
