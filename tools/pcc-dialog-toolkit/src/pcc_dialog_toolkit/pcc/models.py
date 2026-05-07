@@ -61,3 +61,17 @@ class PccPackage:
                 continue
             results.append(item)
         return results
+
+    def list_bioconversations(self) -> list[dict[str, int | str | None]]:
+        rows: list[dict[str, int | str | None]] = []
+        for item in self.iter_exports(class_name="BioConversation"):
+            rows.append(
+                {
+                    "name": item.object_name,
+                    "index": item.index,
+                    "class": item.class_name,
+                    "offset": item.serial_offset,
+                    "size": item.serial_size,
+                }
+            )
+        return rows

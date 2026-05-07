@@ -4,10 +4,10 @@ MVP para extraer conversaciones `BioConversation` desde archivos `.pcc` (Mass Ef
 
 ## Estado actual
 
-- Fase 1 completada: lector PCC base (header, names, imports, exports) con inspeccion CLI.
+- Fase 2 completada: deteccion de exports `BioConversation` con dump de metadata minima.
 
 ## Uso (actual)
 
 ```bash
-pcc_dialog_extract path/al/archivo.pcc
+pcc_dialog_extract path/al/archivo.pcc --list-bioconversations
 ```

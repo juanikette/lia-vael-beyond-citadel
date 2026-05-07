@@ -20,6 +20,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dlc-dir", help="Ruta al directorio DLC")
     parser.add_argument("-o", "--output", help="Archivo JSON de salida")
     parser.add_argument("--pretty", action="store_true", help="Salida JSON legible")
+    parser.add_argument(
+        "--list-bioconversations",
+        action="store_true",
+        help="Lista exports BioConversation con metadata minima",
+    )
     parser.add_argument("--version", action="store_true", help="Muestra la version actual")
     return parser
 
@@ -57,4 +62,15 @@ def main(argv: list[str] | None = None) -> int:
         f"imports={len(package.imports)} "
         f"exports={len(package.exports)}"
     )
+    if args.list_bioconversations:
+        conversations = package.list_bioconversations()
+        print(f"BioConversation exports: {len(conversations)}")
+        for row in conversations:
+            print(
+                f"- idx={row['index']} "
+                f"name={row['name']} "
+                f"class={row['class']} "
+                f"offset={row['offset']} "
+                f"size={row['size']}"
+            )
     return 0

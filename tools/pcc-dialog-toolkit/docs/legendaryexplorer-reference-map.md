@@ -28,3 +28,9 @@ Al cerrar cada fase, agregar aqui:
 - Archivo/clase LEX consultada: `LegendaryExplorerCore/Packages/MEPackage.cs`.
 - Decision toolkit: mantener parseo defensivo minimo para header y tablas base, sin lazy-load ni soporte de compresion en esta fase.
 - Diferencia OT vs LE detectada: formato de header comparte offsets base para names/imports/exports; las variaciones de plataforma/compresion se posponen para fases siguientes.
+
+## Fase 2
+
+- Archivo/clase LEX consultada: `LegendaryExplorerCore/Packages/MEPackage.cs` y `LegendaryExplorerCore/Packages/ImportEntry.cs`.
+- Decision toolkit: detectar `BioConversation` resolviendo el `class_index` de export hacia import y mapeando `object_name`/`class_name` con la name table.
+- Diferencia OT vs LE detectada: para la deteccion por clase, la logica de indices import/export aplicada en Fase 2 se mantiene estable en los perfiles validados (ME2 OT y LE2).
