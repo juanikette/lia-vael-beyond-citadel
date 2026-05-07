@@ -35,15 +35,21 @@ def _build_pcc_with_bioconv_properties() -> bytes:
     import_entry = struct.pack("<iiiiiii", 0, 0, 1, 0, 0, 2, 0)
 
     prop_blob = bytearray()
-    prop_blob.extend(_prop_tag(4, 7, 4))
+    prop_blob.extend(_prop_tag(4, 7, 8))
     prop_blob.extend(struct.pack("<ii", 7, 0))
     prop_blob.extend(b"\x01\x00\x00\x00")
-    prop_blob.extend(_prop_tag(5, 7, 4))
+    prop_blob.extend(b"\x0A\x00\x00\x00")
+    prop_blob.extend(_prop_tag(5, 7, 12))
     prop_blob.extend(struct.pack("<ii", 7, 0))
     prop_blob.extend(b"\x02\x00\x00\x00")
-    prop_blob.extend(_prop_tag(6, 7, 4))
+    prop_blob.extend(b"\x0A\x00\x00\x00")
+    prop_blob.extend(b"\xFF\xFF\xFF\xFF")
+    prop_blob.extend(_prop_tag(6, 7, 16))
     prop_blob.extend(struct.pack("<ii", 7, 0))
     prop_blob.extend(b"\x03\x00\x00\x00")
+    prop_blob.extend(b"\x03\x00\x00\x00")
+    prop_blob.extend(b"\x04\x00\x00\x00")
+    prop_blob.extend(b"\x05\x00\x00\x00")
     prop_blob.extend(struct.pack("<ii", 8, 0))
 
     header_size = 64
@@ -90,7 +96,11 @@ def test_phase3_stub_ast_counts(tmp_path: Path) -> None:
     assert len(row["entries"]) == 1
     assert len(row["replies"]) == 2
     assert len(row["speakers"]) == 3
-    assert row["replies"][0]["target_entry_id"] == 0
+    assert row["entries"][0]["id"] == 10
+    assert row["entries"][0]["reply_links"] == [0]
+    assert row["replies"][0]["target_entry_id"] == 10
+    assert row["replies"][1]["target_entry_id"] is None
+    assert [speaker["id"] for speaker in row["speakers"]] == [3, 4, 5]
 
 
 def test_phase3_cli_dump_stub_json(tmp_path: Path) -> None:

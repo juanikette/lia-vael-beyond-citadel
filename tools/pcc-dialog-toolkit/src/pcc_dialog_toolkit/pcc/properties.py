@@ -94,3 +94,22 @@ def read_array_property_count(data: bytes, tag: PropertyTag) -> int:
     if tag.size < 4:
         raise PccFormatError(f"ArrayProperty sin longitud valida: {tag.name}")
     return _read_i32(data, tag.value_offset)
+
+
+def read_array_property_i32_values(data: bytes, tag: PropertyTag) -> list[int]:
+    count = read_array_property_count(data, tag)
+    payload_start = tag.value_offset + 4
+    payload_size = tag.size - 4
+    expected_size = count * 4
+
+    if count < 0:
+        raise PccFormatError(f"ArrayProperty con longitud negativa: {tag.name}")
+    if payload_size < expected_size:
+        return []
+
+    values: list[int] = []
+    cursor = payload_start
+    for _ in range(count):
+        values.append(_read_i32(data, cursor))
+        cursor += 4
+    return values
