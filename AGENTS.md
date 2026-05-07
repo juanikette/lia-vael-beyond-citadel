@@ -26,6 +26,16 @@ Use this file as the **operational entry point** for AI agents.
 - Validate dialogue triggers and mission-state conditions carefully.
 - Avoid touching unrelated systems.
 
+## Notion Tracking Workflow
+
+When a Kanban or task board exists in Notion for the active workstream (for example, `PCC Dialog Toolkit - Kanban`), treat it as a required execution log.
+
+- Keep each phase page updated with scope, deliverables, risks, and verification notes.
+- Move status values (`TO-DO` -> `In Progress` -> `Done`) as work advances.
+- If extra implementation tasks appear outside the original phase plan, add them as new Kanban items.
+- Record meaningful progress before and after major implementation steps.
+- Keep Notion updates aligned with repository state (do not mark `Done` without corresponding code/docs progress).
+
 ## Build, Test, and Lint (Current State)
 
 No build, test, or lint tooling is currently defined in this repository.
