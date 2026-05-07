@@ -3,6 +3,7 @@ from __future__ import annotations
 from pcc_dialog_toolkit.model.ast import Conversation, EntryNode, ReplyNode, Speaker
 from pcc_dialog_toolkit.pcc.models import ExportEntry, PccPackage
 from pcc_dialog_toolkit.pcc.properties import (
+    analyze_array_property_layout,
     extract_bioconversation_key_properties,
     read_array_property_count,
     read_array_property_i32_rows,
@@ -51,6 +52,17 @@ def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conv
     entry_rows, reply_rows, speaker_rows = _conversation_row_arrays(package, export)
     row_mode = bool(entry_rows and reply_rows and speaker_rows)
     warnings: list[str] = []
+    tags = extract_bioconversation_key_properties(package.raw_data, package.names, export)
+    tag_map = {tag.name: tag for tag in tags}
+    for key in ("EntryList", "ReplyList", "SpeakerList"):
+        tag = tag_map.get(key)
+        if tag is None:
+            continue
+        layout = analyze_array_property_layout(package.raw_data, tag)
+        if not layout.is_tight_i32 and layout.count > 0:
+            warnings.append(
+                f"non_tight_i32_array:{key}:count={layout.count}:bytes_per_item={layout.bytes_per_item}:remainder={layout.remainder}"
+            )
 
     entry_ids = entry_values if len(entry_values) == entry_count else list(range(entry_count))
     reply_targets = reply_values if len(reply_values) == reply_count else [i if i < entry_count else -1 for i in range(reply_count)]
@@ -161,11 +173,28 @@ def parse_all_bioconversation_stubs(package: PccPackage) -> list[Conversation]:
 def inspect_bioconversation_row_payloads(package: PccPackage) -> list[dict[str, object]]:
     report: list[dict[str, object]] = []
     for export in package.iter_exports(class_name="BioConversation"):
+        tags = extract_bioconversation_key_properties(package.raw_data, package.names, export)
+        tag_map = {tag.name: tag for tag in tags}
+
+        layouts: dict[str, dict[str, int | bool | None]] = {}
+        for key in ("EntryList", "ReplyList", "SpeakerList"):
+            if key not in tag_map:
+                continue
+            info = analyze_array_property_layout(package.raw_data, tag_map[key])
+            layouts[key] = {
+                "count": info.count,
+                "payload_size": info.payload_size,
+                "bytes_per_item": info.bytes_per_item,
+                "remainder": info.remainder,
+                "is_tight_i32": info.is_tight_i32,
+            }
+
         entry_rows, reply_rows, speaker_rows = _conversation_row_arrays(package, export)
         report.append(
             {
                 "id": export.object_name or f"Export_{export.index}",
                 "export_index": export.index,
+                "array_layouts": layouts,
                 "entry_rows": entry_rows,
                 "reply_rows": reply_rows,
                 "speaker_rows": speaker_rows,

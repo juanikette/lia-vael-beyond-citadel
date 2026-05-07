@@ -253,7 +253,7 @@ def test_phase3_stub_ast_counts(tmp_path: Path) -> None:
     assert row["replies"][1]["target_entry_id"] is None
     assert [speaker["id"] for speaker in row["speakers"]] == [3, 4, 5]
     assert row["parse_mode"] == "count_or_value_fallback"
-    assert row["warnings"] == ["partial_row_payload_detected_fallback_applied"]
+    assert "partial_row_payload_detected_fallback_applied" in row["warnings"]
 
 
 def test_phase3_cli_dump_stub_json(tmp_path: Path) -> None:
@@ -335,6 +335,7 @@ def test_phase3_cli_dump_row_payloads_json(tmp_path: Path) -> None:
     assert rows[0]["id"] == "Conv_RowPayload"
     assert rows[0]["row_payload_complete"] is True
     assert rows[0]["entry_rows"][0] == [100, 1, 5000]
+    assert rows[0]["array_layouts"]["EntryList"]["is_tight_i32"] is True
 
 
 def test_phase3_row_payload_dump_empty_for_non_tight_i32_arrays(tmp_path: Path) -> None:
@@ -349,3 +350,4 @@ def test_phase3_row_payload_dump_empty_for_non_tight_i32_arrays(tmp_path: Path) 
     assert row["entry_rows"] == []
     assert row["reply_rows"] == []
     assert row["speaker_rows"] == [[3, 4, 5]]
+    assert row["array_layouts"]["EntryList"]["is_tight_i32"] is True

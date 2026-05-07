@@ -15,6 +15,15 @@ class PropertyTag:
     value_offset: int
 
 
+@dataclass(slots=True)
+class ArrayLayoutInfo:
+    count: int
+    payload_size: int
+    bytes_per_item: int | None
+    remainder: int
+    is_tight_i32: bool
+
+
 def _resolve_name(name_index: int, names: list[NameEntry]) -> str:
     if 0 <= name_index < len(names):
         return names[name_index].text
@@ -133,3 +142,27 @@ def read_array_property_i32_rows(data: bytes, tag: PropertyTag, *, item_width: i
         rows.append(values[cursor : cursor + item_width])
         cursor += item_width
     return rows
+
+
+def analyze_array_property_layout(data: bytes, tag: PropertyTag) -> ArrayLayoutInfo:
+    count = read_array_property_count(data, tag)
+    payload_size = max(0, tag.size - 4)
+
+    if count <= 0:
+        return ArrayLayoutInfo(
+            count=max(0, count),
+            payload_size=payload_size,
+            bytes_per_item=None,
+            remainder=payload_size,
+            is_tight_i32=(payload_size == 0),
+        )
+
+    bytes_per_item = payload_size // count
+    remainder = payload_size % count
+    return ArrayLayoutInfo(
+        count=count,
+        payload_size=payload_size,
+        bytes_per_item=bytes_per_item,
+        remainder=remainder,
+        is_tight_i32=(remainder == 0 and bytes_per_item == 4),
+    )
