@@ -166,3 +166,26 @@ def analyze_array_property_layout(data: bytes, tag: PropertyTag) -> ArrayLayoutI
         remainder=remainder,
         is_tight_i32=(remainder == 0 and bytes_per_item == 4),
     )
+
+
+def read_array_property_struct_head_i32(data: bytes, tag: PropertyTag, *, head_i32: int) -> list[list[int]]:
+    if head_i32 <= 0:
+        raise PccFormatError(f"head_i32 invalido: {head_i32}")
+
+    info = analyze_array_property_layout(data, tag)
+    if info.count <= 0 or info.bytes_per_item is None:
+        return []
+    if info.remainder != 0:
+        return []
+
+    stride = info.bytes_per_item
+    head_size = head_i32 * 4
+    if stride < head_size:
+        return []
+
+    rows: list[list[int]] = []
+    payload_start = tag.value_offset + 4
+    for i in range(info.count):
+        item_start = payload_start + (i * stride)
+        rows.append([_read_i32(data, item_start + (j * 4)) for j in range(head_i32)])
+    return rows

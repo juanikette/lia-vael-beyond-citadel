@@ -7,6 +7,7 @@ from pcc_dialog_toolkit.pcc.properties import (
     extract_bioconversation_key_properties,
     read_array_property_count,
     read_array_property_i32_rows,
+    read_array_property_struct_head_i32,
     read_array_property_i32_values,
 )
 
@@ -32,7 +33,7 @@ def _conversation_arrays(package: PccPackage, export: ExportEntry) -> tuple[list
 def _conversation_row_arrays(
     package: PccPackage,
     export: ExportEntry,
-) -> tuple[list[list[int]], list[list[int]], list[list[int]]]:
+) -> tuple[list[list[int]], list[list[int]], list[list[int]], bool]:
     tags = extract_bioconversation_key_properties(package.raw_data, package.names, export)
     mapped = {tag.name: tag for tag in tags}
 
@@ -40,16 +41,33 @@ def _conversation_row_arrays(
     # EntryList rows: [id, speaker_id, line_strref]
     # ReplyList rows: [id, target_entry_id, line_strref]
     # SpeakerList rows: [id, tag_name_index, display_name_strref]
-    entry_rows = read_array_property_i32_rows(package.raw_data, mapped["EntryList"], item_width=3) if "EntryList" in mapped else []
-    reply_rows = read_array_property_i32_rows(package.raw_data, mapped["ReplyList"], item_width=3) if "ReplyList" in mapped else []
-    speaker_rows = read_array_property_i32_rows(package.raw_data, mapped["SpeakerList"], item_width=3) if "SpeakerList" in mapped else []
-    return entry_rows, reply_rows, speaker_rows
+    used_struct_head = False
+
+    def _read_rows(key: str) -> list[list[int]]:
+        nonlocal used_struct_head
+        tag = mapped.get(key)
+        if tag is None:
+            return []
+
+        tight_rows = read_array_property_i32_rows(package.raw_data, tag, item_width=3)
+        if tight_rows:
+            return tight_rows
+
+        struct_rows = read_array_property_struct_head_i32(package.raw_data, tag, head_i32=3)
+        if struct_rows:
+            used_struct_head = True
+        return struct_rows
+
+    entry_rows = _read_rows("EntryList")
+    reply_rows = _read_rows("ReplyList")
+    speaker_rows = _read_rows("SpeakerList")
+    return entry_rows, reply_rows, speaker_rows, used_struct_head
 
 
 def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conversation:
     entry_count, reply_count, speaker_count = _conversation_counts(package, export)
     entry_values, reply_values, speaker_values = _conversation_arrays(package, export)
-    entry_rows, reply_rows, speaker_rows = _conversation_row_arrays(package, export)
+    entry_rows, reply_rows, speaker_rows, used_struct_head = _conversation_row_arrays(package, export)
     row_mode = bool(entry_rows and reply_rows and speaker_rows)
     warnings: list[str] = []
     tags = extract_bioconversation_key_properties(package.raw_data, package.names, export)
@@ -59,7 +77,7 @@ def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conv
         if tag is None:
             continue
         layout = analyze_array_property_layout(package.raw_data, tag)
-        if not layout.is_tight_i32 and layout.count > 0:
+        if not layout.is_tight_i32 and layout.count > 0 and not used_struct_head:
             warnings.append(
                 f"non_tight_i32_array:{key}:count={layout.count}:bytes_per_item={layout.bytes_per_item}:remainder={layout.remainder}"
             )
@@ -158,7 +176,11 @@ def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conv
         entries=entries,
         replies=replies,
         speakers=speakers,
-        parse_mode="row_payload" if row_mode else "count_or_value_fallback",
+        parse_mode=(
+            "row_payload_struct_head"
+            if (row_mode and used_struct_head)
+            else ("row_payload" if row_mode else "count_or_value_fallback")
+        ),
         warnings=warnings,
     )
 
@@ -189,7 +211,7 @@ def inspect_bioconversation_row_payloads(package: PccPackage) -> list[dict[str, 
                 "is_tight_i32": info.is_tight_i32,
             }
 
-        entry_rows, reply_rows, speaker_rows = _conversation_row_arrays(package, export)
+        entry_rows, reply_rows, speaker_rows, used_struct_head = _conversation_row_arrays(package, export)
         report.append(
             {
                 "id": export.object_name or f"Export_{export.index}",
@@ -199,6 +221,7 @@ def inspect_bioconversation_row_payloads(package: PccPackage) -> list[dict[str, 
                 "reply_rows": reply_rows,
                 "speaker_rows": speaker_rows,
                 "row_payload_complete": bool(entry_rows and reply_rows and speaker_rows),
+                "used_struct_head": used_struct_head,
             }
         )
     return report
