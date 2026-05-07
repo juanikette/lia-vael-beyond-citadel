@@ -50,6 +50,7 @@ def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conv
     entry_values, reply_values, speaker_values = _conversation_arrays(package, export)
     entry_rows, reply_rows, speaker_rows = _conversation_row_arrays(package, export)
     row_mode = bool(entry_rows and reply_rows and speaker_rows)
+    warnings: list[str] = []
 
     entry_ids = entry_values if len(entry_values) == entry_count else list(range(entry_count))
     reply_targets = reply_values if len(reply_values) == reply_count else [i if i < entry_count else -1 for i in range(reply_count)]
@@ -69,6 +70,8 @@ def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conv
             for row in entry_rows
         ]
     else:
+        if entry_rows or reply_rows or speaker_rows:
+            warnings.append("partial_row_payload_detected_fallback_applied")
         entries = [
             EntryNode(
                 id=i,
@@ -125,9 +128,14 @@ def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conv
         ]
 
     links_by_entry: dict[int, list[int]] = {entry.id: [] for entry in entries}
+    known_entry_ids = set(links_by_entry)
     for reply in replies:
-        if reply.target_entry_id is not None and reply.target_entry_id in links_by_entry:
+        if reply.target_entry_id is None:
+            continue
+        if reply.target_entry_id in known_entry_ids:
             links_by_entry[reply.target_entry_id].append(reply.id)
+        else:
+            warnings.append(f"reply_target_missing_entry:{reply.id}->{reply.target_entry_id}")
     for entry in entries:
         entry.reply_links = links_by_entry.get(entry.id, [])
 
@@ -138,6 +146,8 @@ def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conv
         entries=entries,
         replies=replies,
         speakers=speakers,
+        parse_mode="row_payload" if row_mode else "count_or_value_fallback",
+        warnings=warnings,
     )
 
 

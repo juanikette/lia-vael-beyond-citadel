@@ -38,6 +38,8 @@ class Conversation:
     entries: list[EntryNode]
     replies: list[ReplyNode]
     speakers: list[Speaker]
+    parse_mode: str
+    warnings: list[str]
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
