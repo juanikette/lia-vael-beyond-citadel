@@ -11,6 +11,7 @@ from pcc_dialog_toolkit.pcc.properties import (
     read_array_property_struct_head_i32,
     read_array_property_i32_values,
 )
+from pcc_dialog_toolkit.dialogue.schema import ConversationListSchema, get_schema_for_profile
 
 
 def _conversation_counts(package: PccPackage, export: ExportEntry) -> tuple[int, int, int]:
@@ -34,6 +35,7 @@ def _conversation_arrays(package: PccPackage, export: ExportEntry) -> tuple[list
 def _conversation_row_arrays(
     package: PccPackage,
     export: ExportEntry,
+    schema: ConversationListSchema,
 ) -> tuple[list[list[int]], list[list[int]], list[list[int]], bool, bool]:
     tags = extract_bioconversation_key_properties(package.raw_data, package.names, export)
     mapped = {tag.name: tag for tag in tags}
@@ -45,37 +47,42 @@ def _conversation_row_arrays(
     used_struct_head = False
     used_struct_matrix = False
 
-    def _read_rows(key: str) -> list[list[int]]:
+    def _read_rows(key: str, head_i32: int) -> list[list[int]]:
         nonlocal used_struct_head, used_struct_matrix
         tag = mapped.get(key)
         if tag is None:
             return []
 
-        tight_rows = read_array_property_i32_rows(package.raw_data, tag, item_width=3)
+        tight_rows = read_array_property_i32_rows(package.raw_data, tag, item_width=head_i32)
         if tight_rows:
             return tight_rows
 
         matrix_rows = read_array_property_struct_i32_matrix(package.raw_data, tag)
-        if matrix_rows and len(matrix_rows[0]) >= 3:
+        if matrix_rows and len(matrix_rows[0]) >= head_i32:
             used_struct_matrix = True
-            return [row[:3] for row in matrix_rows]
+            return [row[:head_i32] for row in matrix_rows]
 
-        struct_rows = read_array_property_struct_head_i32(package.raw_data, tag, head_i32=3)
+        struct_rows = read_array_property_struct_head_i32(package.raw_data, tag, head_i32=head_i32)
         if struct_rows:
             used_struct_head = True
         return struct_rows
 
-    entry_rows = _read_rows("EntryList")
-    reply_rows = _read_rows("ReplyList")
-    speaker_rows = _read_rows("SpeakerList")
+    entry_rows = _read_rows("EntryList", schema.entry_head_i32)
+    reply_rows = _read_rows("ReplyList", schema.reply_head_i32)
+    speaker_rows = _read_rows("SpeakerList", schema.speaker_head_i32)
     return entry_rows, reply_rows, speaker_rows, used_struct_head, used_struct_matrix
 
 
 def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conversation:
     game_profile = package.infer_game_profile()
+    schema = get_schema_for_profile(game_profile)
     entry_count, reply_count, speaker_count = _conversation_counts(package, export)
     entry_values, reply_values, speaker_values = _conversation_arrays(package, export)
-    entry_rows, reply_rows, speaker_rows, used_struct_head, used_struct_matrix = _conversation_row_arrays(package, export)
+    entry_rows, reply_rows, speaker_rows, used_struct_head, used_struct_matrix = _conversation_row_arrays(
+        package,
+        export,
+        schema,
+    )
     row_mode = bool(entry_rows and reply_rows and speaker_rows)
     warnings: list[str] = []
     tags = extract_bioconversation_key_properties(package.raw_data, package.names, export)
@@ -231,6 +238,8 @@ def parse_all_bioconversation_stubs(package: PccPackage) -> list[Conversation]:
 def inspect_bioconversation_row_payloads(package: PccPackage) -> list[dict[str, object]]:
     report: list[dict[str, object]] = []
     for export in package.iter_exports(class_name="BioConversation"):
+        profile = package.infer_game_profile()
+        schema = get_schema_for_profile(profile)
         tags = extract_bioconversation_key_properties(package.raw_data, package.names, export)
         tag_map = {tag.name: tag for tag in tags}
 
@@ -247,11 +256,21 @@ def inspect_bioconversation_row_payloads(package: PccPackage) -> list[dict[str, 
                 "is_tight_i32": info.is_tight_i32,
             }
 
-        entry_rows, reply_rows, speaker_rows, used_struct_head, used_struct_matrix = _conversation_row_arrays(package, export)
+        entry_rows, reply_rows, speaker_rows, used_struct_head, used_struct_matrix = _conversation_row_arrays(
+            package,
+            export,
+            schema,
+        )
         report.append(
             {
                 "id": export.object_name or f"Export_{export.index}",
                 "export_index": export.index,
+                "game_profile": profile,
+                "schema": {
+                    "entry_head_i32": schema.entry_head_i32,
+                    "reply_head_i32": schema.reply_head_i32,
+                    "speaker_head_i32": schema.speaker_head_i32,
+                },
                 "array_layouts": layouts,
                 "entry_rows": entry_rows,
                 "reply_rows": reply_rows,
