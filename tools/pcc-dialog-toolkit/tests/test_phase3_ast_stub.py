@@ -518,6 +518,7 @@ def test_phase3_stub_validation_report(tmp_path: Path) -> None:
     assert len(report) == 1
     assert report[0]["is_valid"] is True
     assert report[0]["issues"] == []
+    assert report[0]["needs_schema_review"] is False
 
 
 def test_phase3_stub_validation_report_with_issue(tmp_path: Path) -> None:
@@ -529,3 +530,18 @@ def test_phase3_stub_validation_report_with_issue(tmp_path: Path) -> None:
     assert len(report) == 1
     assert report[0]["is_valid"] is False
     assert "reply_target_missing:200->999" in report[0]["issues"]
+    assert report[0]["needs_schema_review"] is False
+
+
+def test_phase3_stub_validation_report_needs_schema_review_unknown_profile(tmp_path: Path) -> None:
+    pcc_path = tmp_path / "sample_validate_unknown_profile.pcc"
+    payload = bytearray(_build_pcc_with_bioconv_row_payloads())
+    packed = ((1 & 0xFFFF) << 16) | (999 & 0xFFFF)
+    payload[4:8] = struct.pack("<I", packed)
+    pcc_path.write_bytes(bytes(payload))
+
+    package = read_pcc(pcc_path)
+    report = package.validate_bioconversation_stubs()
+    assert len(report) == 1
+    assert report[0]["game_profile"] == "unknown"
+    assert report[0]["needs_schema_review"] is True

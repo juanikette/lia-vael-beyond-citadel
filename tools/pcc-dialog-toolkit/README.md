@@ -15,3 +15,5 @@ pcc_dialog_extract path/al/archivo.pcc --dump-bioconversation-stub --pretty
 pcc_dialog_extract path/al/archivo.pcc --dump-bioconversation-row-payloads --pretty
 pcc_dialog_extract path/al/archivo.pcc --validate-bioconversation-stubs --pretty
 ```
+
+`--validate-bioconversation-stubs` marca `needs_schema_review=true` cuando el perfil es desconocido o el parseo sugiere desajuste de esquema.

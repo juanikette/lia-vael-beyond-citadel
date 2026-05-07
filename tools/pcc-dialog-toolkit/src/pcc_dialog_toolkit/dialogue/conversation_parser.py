@@ -282,14 +282,21 @@ def validate_all_bioconversation_stubs(package: PccPackage) -> list[dict[str, ob
     reports: list[dict[str, object]] = []
     for stub in parse_all_bioconversation_stubs(package):
         issues = validate_bioconversation_stub(stub)
+        needs_schema_review = (
+            stub.game_profile == "unknown"
+            or any(w.startswith("non_tight_i32_array:") for w in stub.warnings)
+            or (stub.parse_mode == "count_or_value_fallback" and len(stub.warnings) > 0)
+        )
         reports.append(
             {
                 "id": stub.id,
                 "export_index": stub.export_index,
                 "game_profile": stub.game_profile,
                 "parse_mode": stub.parse_mode,
+                "warnings": stub.warnings,
                 "issues": issues,
                 "is_valid": len(issues) == 0,
+                "needs_schema_review": needs_schema_review,
             }
         )
     return reports
