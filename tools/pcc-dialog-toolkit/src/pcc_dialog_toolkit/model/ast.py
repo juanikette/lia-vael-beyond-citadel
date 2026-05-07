@@ -35,6 +35,7 @@ class Conversation:
     id: str
     export_index: int
     package_path: str
+    game_profile: str
     entries: list[EntryNode]
     replies: list[ReplyNode]
     speakers: list[Speaker]

@@ -72,6 +72,7 @@ def _conversation_row_arrays(
 
 
 def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conversation:
+    game_profile = package.infer_game_profile()
     entry_count, reply_count, speaker_count = _conversation_counts(package, export)
     entry_values, reply_values, speaker_values = _conversation_arrays(package, export)
     entry_rows, reply_rows, speaker_rows, used_struct_head, used_struct_matrix = _conversation_row_arrays(package, export)
@@ -82,6 +83,8 @@ def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conv
     entry_matrix = read_array_property_struct_i32_matrix(package.raw_data, tag_map["EntryList"]) if "EntryList" in tag_map else []
     reply_matrix = read_array_property_struct_i32_matrix(package.raw_data, tag_map["ReplyList"]) if "ReplyList" in tag_map else []
     speaker_matrix = read_array_property_struct_i32_matrix(package.raw_data, tag_map["SpeakerList"]) if "SpeakerList" in tag_map else []
+    if game_profile == "unknown":
+        warnings.append("unknown_game_profile")
     for key in ("EntryList", "ReplyList", "SpeakerList"):
         tag = tag_map.get(key)
         if tag is None:
@@ -201,6 +204,7 @@ def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conv
         id=export.object_name or f"Export_{export.index}",
         export_index=export.index,
         package_path=package.path,
+        game_profile=game_profile,
         entries=entries,
         replies=replies,
         speakers=speakers,

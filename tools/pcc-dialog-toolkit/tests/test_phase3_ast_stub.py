@@ -335,6 +335,7 @@ def test_phase3_stub_ast_counts(tmp_path: Path) -> None:
     assert len(rows) == 1
     row = rows[0]
     assert row["id"] == "Conv_Test"
+    assert row["game_profile"] == "me2_ot"
     assert len(row["entries"]) == 1
     assert len(row["replies"]) == 2
     assert len(row["speakers"]) == 3
@@ -380,6 +381,7 @@ def test_phase3_stub_ast_row_payload_mapping(tmp_path: Path) -> None:
     assert len(rows) == 1
     row = rows[0]
     assert row["id"] == "Conv_RowPayload"
+    assert row["game_profile"] == "me2_ot"
     assert [item["id"] for item in row["entries"]] == [100, 101]
     assert [item["speaker_id"] for item in row["entries"]] == [1, 2]
     assert [item["line_strref"] for item in row["entries"]] == [5000, 5001]
@@ -400,6 +402,20 @@ def test_phase3_stub_warns_on_missing_target(tmp_path: Path) -> None:
     row = package.parse_bioconversation_stubs()[0]
     assert row["parse_mode"] == "row_payload"
     assert row["warnings"] == ["reply_target_missing_entry:200->999"]
+
+
+def test_phase3_unknown_profile_warning(tmp_path: Path) -> None:
+    pcc_path = tmp_path / "sample_unknown_profile.pcc"
+    payload = bytearray(_build_pcc_with_bioconv_row_payloads())
+    # patch packed version to unknown (unreal=999, licensee=1)
+    packed = ((1 & 0xFFFF) << 16) | (999 & 0xFFFF)
+    payload[4:8] = struct.pack("<I", packed)
+    pcc_path.write_bytes(bytes(payload))
+
+    package = read_pcc(pcc_path)
+    row = package.parse_bioconversation_stubs()[0]
+    assert row["game_profile"] == "unknown"
+    assert "unknown_game_profile" in row["warnings"]
 
 
 def test_phase3_cli_dump_row_payloads_json(tmp_path: Path) -> None:

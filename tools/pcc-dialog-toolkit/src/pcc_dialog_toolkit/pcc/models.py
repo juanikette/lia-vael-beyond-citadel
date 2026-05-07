@@ -53,6 +53,19 @@ class PccPackage:
     imports: list[ImportEntry]
     exports: list[ExportEntry]
 
+    def infer_game_profile(self) -> str:
+        uv = self.header.unreal_version
+        lv = self.header.licensee_version
+        if uv == 512 and lv == 130:
+            return "me2_ot"
+        if uv == 684 and lv == 168:
+            return "le2"
+        if uv == 684 and lv == 194:
+            return "me3_ot"
+        if uv == 685 and lv == 205:
+            return "le3"
+        return "unknown"
+
     def iter_exports(self, *, class_name: str | None = None, object_name: str | None = None) -> list[ExportEntry]:
         results: list[ExportEntry] = []
         for item in self.exports:
