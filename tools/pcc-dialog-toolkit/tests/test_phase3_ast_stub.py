@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import struct
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -77,20 +78,23 @@ def _build_pcc_with_bioconv_properties() -> bytes:
     return bytes(data)
 
 
-def test_phase3_bootstrap_extracts_key_properties(tmp_path: Path) -> None:
-    pcc_path = tmp_path / "sample_props.pcc"
+def test_phase3_stub_ast_counts(tmp_path: Path) -> None:
+    pcc_path = tmp_path / "sample_ast.pcc"
     pcc_path.write_bytes(_build_pcc_with_bioconv_properties())
 
     package = read_pcc(pcc_path)
-    rows = package.inspect_bioconversation_properties()
+    rows = package.parse_bioconversation_stubs()
     assert len(rows) == 1
-    props = rows[0]["properties"]
-    assert [p["name"] for p in props] == ["EntryList", "ReplyList", "SpeakerList"]
-    assert [p["array_count"] for p in props] == [1, 2, 3]
+    row = rows[0]
+    assert row["id"] == "Conv_Test"
+    assert len(row["entries"]) == 1
+    assert len(row["replies"]) == 2
+    assert len(row["speakers"]) == 3
+    assert row["replies"][0]["target_entry_id"] == 0
 
 
-def test_phase3_cli_property_inspection(tmp_path: Path) -> None:
-    pcc_path = tmp_path / "sample_props.pcc"
+def test_phase3_cli_dump_stub_json(tmp_path: Path) -> None:
+    pcc_path = tmp_path / "sample_ast.pcc"
     pcc_path.write_bytes(_build_pcc_with_bioconv_properties())
 
     result = subprocess.run(
@@ -99,7 +103,7 @@ def test_phase3_cli_property_inspection(tmp_path: Path) -> None:
             "-m",
             "pcc_dialog_toolkit",
             str(pcc_path),
-            "--inspect-bioconversation-properties",
+            "--dump-bioconversation-stub",
         ],
         capture_output=True,
         text=True,
@@ -107,7 +111,7 @@ def test_phase3_cli_property_inspection(tmp_path: Path) -> None:
     )
 
     assert result.returncode == 0
-    assert "BioConversation property-inspection exports: 1" in result.stdout
-    assert "prop=EntryList" in result.stdout
-    assert "prop=ReplyList" in result.stdout
-    assert "prop=SpeakerList" in result.stdout
+    payload = result.stdout.splitlines()[-1]
+    rows = json.loads(payload)
+    assert len(rows) == 1
+    assert rows[0]["id"] == "Conv_Test"

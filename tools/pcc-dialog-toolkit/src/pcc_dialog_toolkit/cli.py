@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 from pcc_dialog_toolkit.pcc import PccFormatError, read_pcc
@@ -29,6 +30,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--inspect-bioconversation-properties",
         action="store_true",
         help="Inspecciona propiedades clave de BioConversation (EntryList/ReplyList/SpeakerList)",
+    )
+    parser.add_argument(
+        "--dump-bioconversation-stub",
+        action="store_true",
+        help="Genera AST stub de conversaciones BioConversation",
     )
     parser.add_argument("--version", action="store_true", help="Muestra la version actual")
     return parser
@@ -93,4 +99,11 @@ def main(argv: list[str] | None = None) -> int:
                     f"array_index={prop['array_index']} "
                     f"value_offset={prop['value_offset']}"
                 )
+
+    if args.dump_bioconversation_stub:
+        conversations = package.parse_bioconversation_stubs()
+        if args.pretty:
+            print(json.dumps(conversations, indent=2, ensure_ascii=False))
+        else:
+            print(json.dumps(conversations, ensure_ascii=False))
     return 0

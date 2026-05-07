@@ -28,6 +28,8 @@ def _skip_tag_meta(data: bytes, cursor: int, prop_type: str) -> int:
         return cursor + 8
     if prop_type == "BoolProperty":
         return cursor + 1
+    if prop_type == "ArrayProperty":
+        return cursor + 8
     return cursor
 
 
@@ -84,3 +86,11 @@ def extract_bioconversation_key_properties(data: bytes, names: list[NameEntry], 
     key_props = {"EntryList", "ReplyList", "SpeakerList"}
     tags = parse_property_tags(data, names, start_offset=export.serial_offset, size=export.serial_size)
     return [tag for tag in tags if tag.name in key_props]
+
+
+def read_array_property_count(data: bytes, tag: PropertyTag) -> int:
+    if tag.prop_type != "ArrayProperty":
+        raise PccFormatError(f"Propiedad no es ArrayProperty: {tag.name}")
+    if tag.size < 4:
+        raise PccFormatError(f"ArrayProperty sin longitud valida: {tag.name}")
+    return _read_i32(data, tag.value_offset)

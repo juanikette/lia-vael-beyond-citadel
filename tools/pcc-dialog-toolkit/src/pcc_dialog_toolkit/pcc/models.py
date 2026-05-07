@@ -78,7 +78,7 @@ class PccPackage:
         return rows
 
     def inspect_bioconversation_properties(self) -> list[dict[str, object]]:
-        from .properties import extract_bioconversation_key_properties
+        from .properties import extract_bioconversation_key_properties, read_array_property_count
 
         rows: list[dict[str, object]] = []
         for item in self.iter_exports(class_name="BioConversation"):
@@ -94,9 +94,17 @@ class PccPackage:
                             "size": tag.size,
                             "array_index": tag.array_index,
                             "value_offset": tag.value_offset,
+                            "array_count": read_array_property_count(self.raw_data, tag)
+                            if tag.prop_type == "ArrayProperty"
+                            else None,
                         }
                         for tag in key_tags
                     ],
                 }
             )
         return rows
+
+    def parse_bioconversation_stubs(self) -> list[dict[str, object]]:
+        from pcc_dialog_toolkit.dialogue import parse_all_bioconversation_stubs
+
+        return [item.to_dict() for item in parse_all_bioconversation_stubs(self)]
