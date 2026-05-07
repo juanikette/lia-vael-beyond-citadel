@@ -442,6 +442,7 @@ def test_phase3_cli_dump_row_payloads_json(tmp_path: Path) -> None:
     assert rows[0]["id"] == "Conv_RowPayload"
     assert rows[0]["game_profile"] == "me2_ot"
     assert rows[0]["schema"]["entry_head_i32"] == 3
+    assert rows[0]["schema"]["reply_condition_start_col"] == 3
     assert rows[0]["row_payload_complete"] is True
     assert rows[0]["entry_rows"][0] == [100, 1, 5000]
     assert rows[0]["array_layouts"]["EntryList"]["is_tight_i32"] is True

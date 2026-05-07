@@ -110,8 +110,13 @@ def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conv
         entries = []
         for idx, row in enumerate(entry_rows):
             listener_tag = None
-            if used_struct_matrix and idx < len(entry_matrix) and len(entry_matrix[idx]) >= 4:
-                name_idx = entry_matrix[idx][3]
+            if (
+                used_struct_matrix
+                and schema.entry_listener_tag_name_idx_col is not None
+                and idx < len(entry_matrix)
+                and len(entry_matrix[idx]) > schema.entry_listener_tag_name_idx_col
+            ):
+                name_idx = entry_matrix[idx][schema.entry_listener_tag_name_idx_col]
                 if 0 <= name_idx < len(package.names):
                     listener_tag = package.names[name_idx].text
             entries.append(
@@ -145,8 +150,13 @@ def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conv
         replies = []
         for idx, row in enumerate(reply_rows):
             condition_refs: list[str] = []
-            if used_struct_matrix and idx < len(reply_matrix):
-                for value in reply_matrix[idx][3:]:
+            if (
+                used_struct_matrix
+                and schema.reply_condition_start_col is not None
+                and idx < len(reply_matrix)
+                and len(reply_matrix[idx]) > schema.reply_condition_start_col
+            ):
+                for value in reply_matrix[idx][schema.reply_condition_start_col :]:
                     if value >= 0:
                         condition_refs.append(f"cond_i32:{value}")
             replies.append(
@@ -174,8 +184,13 @@ def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conv
         speakers = []
         for idx, row in enumerate(speaker_rows):
             display_name = None
-            if used_struct_matrix and idx < len(speaker_matrix) and len(speaker_matrix[idx]) >= 3:
-                strref = speaker_matrix[idx][2]
+            if (
+                used_struct_matrix
+                and schema.speaker_display_name_strref_col is not None
+                and idx < len(speaker_matrix)
+                and len(speaker_matrix[idx]) > schema.speaker_display_name_strref_col
+            ):
+                strref = speaker_matrix[idx][schema.speaker_display_name_strref_col]
                 if strref >= 0:
                     display_name = f"strref:{strref}"
             speakers.append(
@@ -270,6 +285,9 @@ def inspect_bioconversation_row_payloads(package: PccPackage) -> list[dict[str, 
                     "entry_head_i32": schema.entry_head_i32,
                     "reply_head_i32": schema.reply_head_i32,
                     "speaker_head_i32": schema.speaker_head_i32,
+                    "entry_listener_tag_name_idx_col": schema.entry_listener_tag_name_idx_col,
+                    "reply_condition_start_col": schema.reply_condition_start_col,
+                    "speaker_display_name_strref_col": schema.speaker_display_name_strref_col,
                 },
                 "array_layouts": layouts,
                 "entry_rows": entry_rows,
