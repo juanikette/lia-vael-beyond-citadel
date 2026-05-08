@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from pcc_dialog_toolkit.pcc import read_pcc
+from pcc import read_pcc
 
 
 def _u_string(value: str) -> bytes:
@@ -356,7 +356,7 @@ def test_phase3_cli_dump_stub_json(tmp_path: Path) -> None:
         [
             sys.executable,
             "-m",
-            "pcc_dialog_toolkit",
+            "cli",
             str(pcc_path),
             "--dump-bioconversation-stub",
         ],
@@ -426,7 +426,7 @@ def test_phase3_cli_dump_row_payloads_json(tmp_path: Path) -> None:
         [
             sys.executable,
             "-m",
-            "pcc_dialog_toolkit",
+            "cli",
             str(pcc_path),
             "--dump-bioconversation-row-payloads",
         ],
@@ -471,7 +471,7 @@ def test_phase3_cli_validate_stub_json(tmp_path: Path) -> None:
         [
             sys.executable,
             "-m",
-            "pcc_dialog_toolkit",
+            "cli",
             str(pcc_path),
             "--validate-bioconversation-stubs",
         ],
@@ -501,7 +501,7 @@ def test_phase3_cli_validate_stub_strict_exit_code(tmp_path: Path) -> None:
         [
             sys.executable,
             "-m",
-            "pcc_dialog_toolkit",
+            "cli",
             str(pcc_path),
             "--validate-bioconversation-stubs",
             "--strict-validation",
@@ -522,7 +522,7 @@ def test_phase3_cli_strict_requires_validate_flag(tmp_path: Path) -> None:
         [
             sys.executable,
             "-m",
-            "pcc_dialog_toolkit",
+            "cli",
             str(pcc_path),
             "--strict-validation",
         ],
@@ -532,7 +532,7 @@ def test_phase3_cli_strict_requires_validate_flag(tmp_path: Path) -> None:
     )
 
     assert result.returncode != 0
-    assert "--strict-validation requiere --validate-bioconversation-stubs" in result.stderr
+    assert "--strict-validation requires --validate-bioconversation-stubs" in result.stderr
 
 
 def test_phase3_struct_head_mode_mapping(tmp_path: Path) -> None:

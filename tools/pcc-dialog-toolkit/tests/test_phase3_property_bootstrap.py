@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from pcc_dialog_toolkit.pcc import read_pcc
+from pcc import read_pcc
 
 
 def _u_string(value: str) -> bytes:
@@ -97,7 +97,7 @@ def test_phase3_cli_property_inspection(tmp_path: Path) -> None:
         [
             sys.executable,
             "-m",
-            "pcc_dialog_toolkit",
+            "cli",
             str(pcc_path),
             "--inspect-bioconversation-properties",
         ],

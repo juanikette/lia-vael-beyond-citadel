@@ -1,60 +1,60 @@
 # LegendaryExplorer Reference Map
 
-Este archivo registra que componentes de LegendaryExplorer usamos como baseline tecnico.
+This file records which LegendaryExplorer components are used as the technical baseline.
 
-Repositorio:
+Repository:
 - https://github.com/ME3Tweaks/LegendaryExplorer/
 
-## Fase 0
+## Phase 0
 
-- Objetivo: definir practica de consulta y trazabilidad por fase.
-- Estado: inicializado.
+- Goal: define the consultation and traceability practice per phase.
+- Status: initialized.
 
-### Areas a consultar en fases siguientes
+### Areas to consult in upcoming phases
 
-- Lectura de package PCC (header, names, imports, exports).
-- Estructuras de conversacion (`BioConversation`, properties relevantes).
-- Lectura TLK y logica de prioridad/override con DLC.
+- PCC package reading (header, names, imports, exports).
+- Conversation structures (`BioConversation`, relevant properties).
+- TLK reading and DLC priority/override logic.
 
-### Regla de registro
+### Logging rule
 
-Al cerrar cada fase, agregar aqui:
-- archivo/clase de LEX consultada,
-- decision tomada en toolkit,
-- diferencia relevante OT vs LE detectada (si aplica).
+When closing each phase, add here:
+- LEX file/class consulted,
+- toolkit decision made,
+- relevant OT vs LE difference detected (if applicable).
 
-## Fase 1
+## Phase 1
 
-- Archivo/clase LEX consultada: `LegendaryExplorerCore/Packages/MEPackage.cs`.
-- Decision toolkit: mantener parseo defensivo minimo para header y tablas base, sin lazy-load ni soporte de compresion en esta fase.
-- Diferencia OT vs LE detectada: formato de header comparte offsets base para names/imports/exports; las variaciones de plataforma/compresion se posponen para fases siguientes.
+- LEX file/class consulted: `LegendaryExplorerCore/Packages/MEPackage.cs`.
+- Toolkit decision: keep minimal defensive parsing for header and base tables, without lazy loading or compression support at this phase.
+- OT vs LE difference detected: header format shares base offsets for names/imports/exports; platform/compression variations are deferred to later phases.
 
-## Fase 2
+## Phase 2
 
-- Archivo/clase LEX consultada: `LegendaryExplorerCore/Packages/MEPackage.cs` y `LegendaryExplorerCore/Packages/ImportEntry.cs`.
-- Decision toolkit: detectar `BioConversation` resolviendo el `class_index` de export hacia import y mapeando `object_name`/`class_name` con la name table.
-- Diferencia OT vs LE detectada: para la deteccion por clase, la logica de indices import/export aplicada en Fase 2 se mantiene estable en los perfiles validados (ME2 OT y LE2).
+- LEX file/class consulted: `LegendaryExplorerCore/Packages/MEPackage.cs` and `LegendaryExplorerCore/Packages/ImportEntry.cs`.
+- Toolkit decision: detect `BioConversation` by resolving export `class_index` to imports and mapping `object_name`/`class_name` through the name table.
+- OT vs LE difference detected: class-based detection using import/export index logic remains stable for validated profiles (ME2 OT and LE2).
 
-## Fase 3 (bootstrap)
+## Phase 3 (bootstrap)
 
-- Archivo/clase LEX consultada: `LegendaryExplorerCore/Packages/MEPackage.cs` (lectura de export data y estructura de property stream a alto nivel).
-- Decision toolkit: parser minimo de property tags para inspeccionar `EntryList`, `ReplyList`, `SpeakerList` antes de construir AST completo.
-- Diferencia OT vs LE detectada: en este bootstrap, el framing base del property tag usado para arrays funciona en fixtures ME2 OT; validacion adicional sobre muestras LE2 reales queda para cierre formal de fase.
+- LEX file/class consulted: `LegendaryExplorerCore/Packages/MEPackage.cs` (export data reading and high-level property stream structure).
+- Toolkit decision: implement a minimal property-tag parser to inspect `EntryList`, `ReplyList`, `SpeakerList` before building the full AST.
+- OT vs LE difference detected: in this bootstrap, base property-tag framing for arrays works on ME2 OT fixtures; additional validation on real LE2 samples is deferred to formal phase closure.
 
-## Fase 4 (inicio)
+## Phase 4 (start)
 
-- Archivo/clase LEX consultada: `LegendaryExplorerCore/TLK/ME2ME3/ME2ME3TLKBase.cs`, `LegendaryExplorerCore/TLK/ME2ME3/ME2ME3TalkFile.cs`, `LegendaryExplorerCore/TLK/ME2ME3/ME2ME3LazyTLK.cs`, `LegendaryExplorerCore/TLK/TLKBitArray.cs`, `LegendaryExplorerCore/TLK/ME2TalkFiles.cs`.
-- Decision toolkit: implementar lector TLK ME2/ME3 compatible con header + tabla `StringID/BitOffset` + arbol Huffman, y resolver `StrRef` sobre AST con prioridad DLC por `MountPriority` y fallback a TLK base.
-- Diferencia OT vs LE detectada: para flujo de lookup, el orden de precedencia por lista cargada y formato TLK compartido en ME2/LE2 permite una ruta comun inicial; quedan pendientes casos LE1/ME1 (formato distinto) y validacion ampliada en muestras reales.
+- LEX file/class consulted: `LegendaryExplorerCore/TLK/ME2ME3/ME2ME3TLKBase.cs`, `LegendaryExplorerCore/TLK/ME2ME3/ME2ME3TalkFile.cs`, `LegendaryExplorerCore/TLK/ME2ME3/ME2ME3LazyTLK.cs`, `LegendaryExplorerCore/TLK/TLKBitArray.cs`, `LegendaryExplorerCore/TLK/ME2TalkFiles.cs`.
+- Toolkit decision: implement a ME2/ME3 TLK reader compatible with header + `StringID/BitOffset` table + Huffman tree, and resolve `StrRef` on AST with DLC priority by `MountPriority` and base TLK fallback.
+- OT vs LE difference detected: for lookup flow, precedence order by loaded list and shared TLK format in ME2/LE2 enables a common initial path; LE1/ME1 cases (different format) and expanded real-sample validation remain pending.
 
-## Fase 5
+## Phase 5
 
-- Archivo/clase LEX consultada: `LegendaryExplorerCore/Packages/MEPackage.cs` (revision de estructura de export + convenciones de salida para trazabilidad).
-- Decision toolkit: introducir salida JSON versionada (`schema_version`) con `summary` agregado y errores por conversacion sin abortar el archivo completo.
-- Diferencia OT vs LE detectada: no se detectaron cambios de formato adicionales en esta fase (foco en serializer/CLI y resiliencia de pipeline).
+- LEX file/class consulted: `LegendaryExplorerCore/Packages/MEPackage.cs` (review of export structure and output conventions for traceability).
+- Toolkit decision: introduce versioned JSON output (`schema_version`) with aggregated `summary` and per-conversation errors without aborting the full file.
+- OT vs LE difference detected: no additional format changes were detected in this phase (focus on serializer/CLI and pipeline resilience).
 
-## Fase 6 (QA en curso)
+## Phase 6 (QA in progress)
 
-- Archivo/clase LEX consultada: `LegendaryExplorerCore/Packages/MEPackage.cs`, `LegendaryExplorerCore/TLK/ME2ME3/ME2ME3TalkFile.cs`, `LegendaryExplorerCore/TLK/ME2TalkFiles.cs`.
-- Decision toolkit: validar por muestra `StrRef`, texto resuelto y enlaces de nodos contra baseline LEX, manteniendo evidencia por perfil (`OT`/`LE2`).
-- Diferencia OT vs LE detectada: OT validado en curso; validacion LE2 queda pendiente de completar con corpus local disponible.
+- LEX file/class consulted: `LegendaryExplorerCore/Packages/MEPackage.cs`, `LegendaryExplorerCore/TLK/ME2ME3/ME2ME3TalkFile.cs`, `LegendaryExplorerCore/TLK/ME2TalkFiles.cs`.
+- Toolkit decision: validate `StrRef`, resolved text, and node links per sample against LEX baseline, preserving evidence per profile (`OT`/`LE2`).
+- OT vs LE difference detected: OT validation is in progress; LE2 validation remains pending completion with available local corpus.

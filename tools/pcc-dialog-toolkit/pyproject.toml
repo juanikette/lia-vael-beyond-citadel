@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pcc-dialog-toolkit"
 version = "0.1.0"
-description = "Toolkit MVP para extraer dialogos BioConversation de PCC"
+description = "MVP toolkit to extract BioConversation dialogue from PCC files"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
@@ -16,7 +16,7 @@ dependencies = ["lzallright>=0.2.6"]
 dev = ["pytest>=9.0"]
 
 [project.scripts]
-pcc_dialog_extract = "pcc_dialog_toolkit.cli:main"
+pcc_dialog_extract = "cli:main"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

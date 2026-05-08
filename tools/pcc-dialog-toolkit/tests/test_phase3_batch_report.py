@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from pcc_dialog_toolkit.validation import build_phase3_batch_report, write_phase3_batch_report
+from validation import build_phase3_batch_report, write_phase3_batch_report
 from tests.test_phase3_ast_stub import _build_pcc_with_bioconv_row_payloads
 
 
@@ -43,7 +43,7 @@ def test_phase3_cli_batch_report(tmp_path: Path) -> None:
         [
             sys.executable,
             "-m",
-            "pcc_dialog_toolkit",
+            "cli",
             "--phase3-batch-dir",
             str(tmp_path),
             "--phase3-batch-glob",

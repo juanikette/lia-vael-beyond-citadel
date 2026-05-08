@@ -20,13 +20,13 @@ CHUNK_BLOCK_HEADER_SIZE = 8
 
 def _read_i32(data: bytes, offset: int) -> int:
     if offset < 0 or offset + 4 > len(data):
-        raise PccFormatError(f"Offset fuera de rango: {offset}")
+        raise PccFormatError(f"Offset out of range: {offset}")
     return struct.unpack_from("<i", data, offset)[0]
 
 
 def _read_u32(data: bytes, offset: int) -> int:
     if offset < 0 or offset + 4 > len(data):
-        raise PccFormatError(f"Offset fuera de rango: {offset}")
+        raise PccFormatError(f"Offset out of range: {offset}")
     return struct.unpack_from("<I", data, offset)[0]
 
 
@@ -38,7 +38,7 @@ def _read_unreal_string(data: bytes, offset: int) -> tuple[str, int]:
     if count > 0:
         end = cursor + count
         if end > len(data):
-            raise PccFormatError("String ASCII truncado")
+            raise PccFormatError("Truncated ASCII string")
         raw = data[cursor:end]
         if raw.endswith(b"\x00"):
             raw = raw[:-1]
@@ -46,7 +46,7 @@ def _read_unreal_string(data: bytes, offset: int) -> tuple[str, int]:
     char_count = -count
     end = cursor + (char_count * 2)
     if end > len(data):
-        raise PccFormatError("String UTF-16 truncado")
+        raise PccFormatError("Truncated UTF-16 string")
     raw = data[cursor:end]
     if raw.endswith(b"\x00\x00"):
         raw = raw[:-2]
@@ -58,18 +58,18 @@ def _require_lzo() -> "type":
         from lzallright import LZOCompressor
     except ImportError as exc:
         raise PccFormatError(
-            "Dependencia faltante para LZO: instala 'lzallright' (pip install lzallright)"
+            "Missing dependency for LZO: install 'lzallright' (pip install lzallright)"
         ) from exc
     return LZOCompressor
 
 
 def _parse_header(data: bytes) -> PccHeader:
     if len(data) < 44:
-        raise PccFormatError("Archivo demasiado pequeno para header PCC")
+        raise PccFormatError("File too small for PCC header")
 
     magic = _read_u32(data, 0)
     if magic != ME_PACKAGE_MAGIC:
-        raise PccFormatError(f"Magic invalido: 0x{magic:08X}")
+        raise PccFormatError(f"Invalid magic: 0x{magic:08X}")
 
     version_pack = _read_u32(data, 4)
     unreal_version = version_pack & 0xFFFF
@@ -87,7 +87,7 @@ def _parse_header(data: bytes) -> PccHeader:
         cursor += (-folder_len) * 2
 
     if cursor < 0 or cursor + 4 > len(data):
-        raise PccFormatError("Header truncado en package folder")
+        raise PccFormatError("Truncated header in package folder")
 
     flags = _read_u32(data, cursor)
     cursor += 4
@@ -105,7 +105,7 @@ def _parse_header(data: bytes) -> PccHeader:
     import_offset = _read_i32(data, cursor)
 
     if min(name_count, export_count, import_count) < 0:
-        raise PccFormatError("Conteos negativos en tablas")
+        raise PccFormatError("Negative counts in tables")
 
     return PccHeader(
         magic=magic,
@@ -170,9 +170,9 @@ def _decompress_me2_ot(data: bytes) -> bytes:
     cursor += 8
 
     if compression_type != COMPRESSION_LZO:
-        raise PccFormatError(f"Tipo de compresion no soportado: {compression_type}")
+        raise PccFormatError(f"Unsupported compression type: {compression_type}")
     if num_chunks <= 0:
-        raise PccFormatError("Tabla de chunks comprimidos vacia o invalida")
+        raise PccFormatError("Compressed chunk table is empty or invalid")
 
     chunks: list[dict[str, int]] = []
     for _ in range(num_chunks):
@@ -193,9 +193,9 @@ def _decompress_me2_ot(data: bytes) -> bytes:
     first_chunk_offset = min(item["uncompressed_offset"] for item in chunks)
     max_end = max(item["uncompressed_offset"] + item["uncompressed_size"] for item in chunks)
     if first_chunk_offset < 0 or max_end <= 0:
-        raise PccFormatError("Offsets de chunk invalidos")
+        raise PccFormatError("Invalid chunk offsets")
     if first_chunk_offset > len(data):
-        raise PccFormatError("Header truncado antes de datos comprimidos")
+        raise PccFormatError("Header truncated before compressed data")
 
     output = bytearray(max_end)
     output[:first_chunk_offset] = data[:first_chunk_offset]
@@ -206,7 +206,7 @@ def _decompress_me2_ot(data: bytes) -> bytes:
         compressed_offset = chunk["compressed_offset"]
         compressed_size = chunk["compressed_size"]
         if compressed_offset < 0 or compressed_offset + compressed_size > len(data):
-            raise PccFormatError("Chunk comprimido fuera de rango")
+            raise PccFormatError("Compressed chunk out of range")
 
         magic = _read_u32(data, compressed_offset)
         block_size = _read_i32(data, compressed_offset + 4)
@@ -214,13 +214,13 @@ def _decompress_me2_ot(data: bytes) -> bytes:
         uncompressed_size_header = _read_i32(data, compressed_offset + 12)
 
         if magic != CHUNK_HEADER_MAGIC:
-            raise PccFormatError("Chunk magic invalido")
+            raise PccFormatError("Invalid chunk magic")
         if uncompressed_size_header != chunk["uncompressed_size"]:
-            raise PccFormatError("Chunk size no coincide con la tabla")
+            raise PccFormatError("Chunk size does not match table")
         if compressed_size_header + CHUNK_HEADER_SIZE > compressed_size:
-            raise PccFormatError("Chunk header truncado")
+            raise PccFormatError("Truncated chunk header")
         if block_size <= 0:
-            raise PccFormatError("Block size invalido en chunk")
+            raise PccFormatError("Invalid block size in chunk")
 
         block_count = uncompressed_size_header // block_size
         if uncompressed_size_header % block_size != 0:
@@ -239,9 +239,9 @@ def _decompress_me2_ot(data: bytes) -> bytes:
             block_cursor += CHUNK_BLOCK_HEADER_SIZE
 
             if block_compressed_size < 0 or block_uncompressed_size < 0:
-                raise PccFormatError("Block size invalido en chunk")
+                raise PccFormatError("Invalid block size in chunk")
             if data_cursor + block_compressed_size > compressed_offset + compressed_size:
-                raise PccFormatError("Block comprimido fuera de rango")
+                raise PccFormatError("Compressed block out of range")
 
             block_data = data[data_cursor : data_cursor + block_compressed_size]
             data_cursor += block_compressed_size
@@ -251,14 +251,14 @@ def _decompress_me2_ot(data: bytes) -> bytes:
                     block_data, output_size_hint=block_uncompressed_size
                 )
             except Exception as exc:
-                raise PccFormatError("Fallo la descompresion LZO") from exc
+                raise PccFormatError("LZO decompression failed") from exc
 
             if len(decompressed) != block_uncompressed_size:
-                raise PccFormatError("Tamano descomprimido no coincide")
+                raise PccFormatError("Decompressed size does not match")
 
             end_offset = write_offset + block_uncompressed_size
             if end_offset > len(output):
-                raise PccFormatError("Buffer descomprimido fuera de rango")
+                raise PccFormatError("Decompressed buffer out of range")
             output[write_offset:end_offset] = decompressed
             write_offset = end_offset
 
@@ -272,7 +272,7 @@ def _parse_names(data: bytes, header: PccHeader) -> list[NameEntry]:
         text, cursor = _read_unreal_string(data, cursor)
         cursor += 8 if header.unreal_version <= 491 else 4
         if cursor > len(data):
-            raise PccFormatError("Name table fuera de rango")
+            raise PccFormatError("Name table out of range")
         names.append(NameEntry(index=i, text=text))
     return names
 
@@ -282,7 +282,7 @@ def _parse_imports(data: bytes, header: PccHeader) -> list[ImportEntry]:
     cursor = header.import_offset
     for i in range(header.import_count):
         if cursor + 28 > len(data):
-            raise PccFormatError("Import table truncada")
+            raise PccFormatError("Truncated import table")
         class_package_name_index = _read_i32(data, cursor)
         class_name_index = _read_i32(data, cursor + 8)
         package_ref = _read_i32(data, cursor + 16)
@@ -305,7 +305,7 @@ def _parse_exports(data: bytes, header: PccHeader) -> list[ExportEntry]:
     cursor = header.export_offset
     for i in range(header.export_count):
         if cursor + 44 > len(data):
-            raise PccFormatError("Export table truncada")
+            raise PccFormatError("Truncated export table")
         class_index = _read_i32(data, cursor)
         super_index = _read_i32(data, cursor + 4)
         package_ref = _read_i32(data, cursor + 8)
@@ -357,7 +357,7 @@ def read_pcc(path: str | Path) -> PccPackage:
             header = _parse_header(data)
             header.flags &= ~COMPRESSED_FLAG
         else:
-            raise PccFormatError("Paquete comprimido no soportado para este perfil")
+            raise PccFormatError("Compressed package is not supported for this profile")
     names = _parse_names(data, header)
     imports = _parse_imports(data, header)
     exports = _parse_exports(data, header)

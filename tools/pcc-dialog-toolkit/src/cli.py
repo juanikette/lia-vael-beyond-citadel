@@ -4,14 +4,14 @@ import argparse
 import json
 from pathlib import Path
 
-from pcc_dialog_toolkit.dialogue import (
+from dialogue import (
     parse_all_bioconversation_stubs,
     parse_all_bioconversation_stubs_resilient,
 )
-from pcc_dialog_toolkit.pcc import PccFormatError, read_pcc
-from pcc_dialog_toolkit.serialize import build_output_payload, validate_output_payload, write_output_json
-from pcc_dialog_toolkit.tlk import TlkFormatError, build_tlk_resolver, resolve_conversations_tlk
-from pcc_dialog_toolkit.validation import write_phase3_batch_report, write_phase3_report
+from pcc import PccFormatError, read_pcc
+from serialize import build_output_payload, validate_output_payload, write_output_json
+from tlk import TlkFormatError, build_tlk_resolver, resolve_conversations_tlk
+from validation import write_phase3_batch_report, write_phase3_report
 
 
 GAMES = ("me1", "me2", "me3", "le1", "le2", "le3")
@@ -20,67 +20,67 @@ GAMES = ("me1", "me2", "me3", "le1", "le2", "le3")
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pcc_dialog_extract",
-        description="Extrae dialogos BioConversation desde PCC (MVP en desarrollo).",
+        description="Extracts BioConversation dialogue from PCC files (MVP in progress).",
     )
-    parser.add_argument("input_pcc", nargs="?", help="Ruta al archivo .pcc de entrada")
-    parser.add_argument("--game", choices=GAMES, help="Juego objetivo")
-    parser.add_argument("--tlk", help="Ruta al TLK base (BIOGame_INT.tlk)")
-    parser.add_argument("--dlc-dir", help="Ruta al directorio DLC")
-    parser.add_argument("-o", "--output", help="Archivo JSON de salida")
-    parser.add_argument("--pretty", action="store_true", help="Salida JSON legible")
+    parser.add_argument("input_pcc", nargs="?", help="Input .pcc file path")
+    parser.add_argument("--game", choices=GAMES, help="Target game profile")
+    parser.add_argument("--tlk", help="Base TLK path (BIOGame_INT.tlk)")
+    parser.add_argument("--dlc-dir", help="DLC directory path")
+    parser.add_argument("-o", "--output", help="Output JSON file path")
+    parser.add_argument("--pretty", action="store_true", help="Pretty-printed JSON output")
     parser.add_argument(
         "--list-bioconversations",
         action="store_true",
-        help="Lista exports BioConversation con metadata minima",
+        help="List BioConversation exports with minimal metadata",
     )
     parser.add_argument(
         "--inspect-bioconversation-properties",
         action="store_true",
-        help="Inspecciona propiedades clave de BioConversation (EntryList/ReplyList/SpeakerList)",
+        help="Inspect key BioConversation properties (EntryList/ReplyList/SpeakerList)",
     )
     parser.add_argument(
         "--dump-bioconversation-property-tags",
         action="store_true",
-        help="Vuelca todos los property tags top-level detectados en BioConversation",
+        help="Dump all top-level property tags detected in BioConversation",
     )
     parser.add_argument(
         "--dump-bioconversation-stub",
         action="store_true",
-        help="Genera AST stub de conversaciones BioConversation",
+        help="Generate BioConversation AST stubs",
     )
     parser.add_argument(
         "--dump-bioconversation-row-payloads",
         action="store_true",
-        help="Vuelca filas bootstrap detectadas para Entry/Reply/Speaker",
+        help="Dump detected bootstrap rows for Entry/Reply/Speaker",
     )
     parser.add_argument(
         "--validate-bioconversation-stubs",
         action="store_true",
-        help="Valida consistencia interna de AST stubs por conversacion",
+        help="Validate internal consistency of AST stubs per conversation",
     )
     parser.add_argument(
         "--strict-validation",
         action="store_true",
-        help="Devuelve exit code 3 si hay conversacion invalida o needs_schema_review",
+        help="Return exit code 3 when invalid conversations or needs_schema_review are present",
     )
     parser.add_argument(
         "--phase3-report",
-        help="Escribe reporte JSON consolidado de validacion Fase 3",
+        help="Write consolidated Phase 3 validation JSON report",
     )
     parser.add_argument(
         "--phase3-batch-dir",
-        help="Directorio para generar reporte batch Fase 3 sobre multiples PCC",
+        help="Directory used to generate a Phase 3 batch report across multiple PCC files",
     )
     parser.add_argument(
         "--phase3-batch-glob",
         default="*.pcc",
-        help="Patron glob para batch report (default: *.pcc)",
+        help="Glob pattern for batch report (default: *.pcc)",
     )
     parser.add_argument(
         "--phase3-batch-report",
-        help="Ruta JSON de salida para reporte batch Fase 3",
+        help="Output JSON path for Phase 3 batch report",
     )
-    parser.add_argument("--version", action="store_true", help="Muestra la version actual")
+    parser.add_argument("--version", action="store_true", help="Show current version")
     return parser
 
 
@@ -94,15 +94,15 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.phase3_batch_report:
         if not args.phase3_batch_dir:
-            parser.error("--phase3-batch-report requiere --phase3-batch-dir")
+            parser.error("--phase3-batch-report requires --phase3-batch-dir")
         batch_dir = Path(args.phase3_batch_dir)
         if not batch_dir.exists() or not batch_dir.is_dir():
-            parser.error(f"No existe el directorio batch: {batch_dir}")
+            parser.error(f"Batch directory does not exist: {batch_dir}")
         files = sorted(batch_dir.glob(args.phase3_batch_glob))
         if not files:
-            parser.error(f"No hay archivos para batch con glob: {args.phase3_batch_glob}")
+            parser.error(f"No files matched batch glob: {args.phase3_batch_glob}")
         output_path = write_phase3_batch_report(files, args.phase3_batch_report, pretty=args.pretty)
-        print(f"Phase3 batch report escrito: {output_path}")
+        print(f"Phase 3 batch report written: {output_path}")
         return 0
 
     if not args.input_pcc:
@@ -111,12 +111,12 @@ def main(argv: list[str] | None = None) -> int:
 
     input_path = Path(args.input_pcc)
     if not input_path.exists():
-        parser.error(f"No existe el archivo PCC: {input_path}")
+        parser.error(f"PCC file does not exist: {input_path}")
 
     try:
         package = read_pcc(input_path)
     except PccFormatError as exc:
-        parser.exit(status=2, message=f"Error leyendo PCC: {exc}\n")
+        parser.exit(status=2, message=f"Error reading PCC: {exc}\n")
 
     print(f"PCC: {input_path}")
     print(
@@ -162,17 +162,17 @@ def main(argv: list[str] | None = None) -> int:
         if args.tlk:
             tlk_path = Path(args.tlk)
             if not tlk_path.exists() or not tlk_path.is_file():
-                parser.error(f"No existe TLK base: {tlk_path}")
+                parser.error(f"Base TLK does not exist: {tlk_path}")
             dlc_dir = None
             if args.dlc_dir:
                 dlc_path = Path(args.dlc_dir)
                 if not dlc_path.exists() or not dlc_path.is_dir():
-                    parser.error(f"No existe directorio DLC: {dlc_path}")
+                    parser.error(f"DLC directory does not exist: {dlc_path}")
                 dlc_dir = dlc_path
             try:
                 resolver = build_tlk_resolver(base_tlk_path=tlk_path, dlc_dir=dlc_dir)
             except TlkFormatError as exc:
-                parser.exit(status=2, message=f"Error leyendo TLK: {exc}\n")
+                parser.exit(status=2, message=f"Error reading TLK: {exc}\n")
             conversations = resolve_conversations_tlk(conversations, resolver)
         conversations_payload = [row.to_dict() for row in conversations]
         if args.pretty:
@@ -185,17 +185,17 @@ def main(argv: list[str] | None = None) -> int:
         if args.tlk:
             tlk_path = Path(args.tlk)
             if not tlk_path.exists() or not tlk_path.is_file():
-                parser.error(f"No existe TLK base: {tlk_path}")
+                parser.error(f"Base TLK does not exist: {tlk_path}")
             dlc_dir = None
             if args.dlc_dir:
                 dlc_path = Path(args.dlc_dir)
                 if not dlc_path.exists() or not dlc_path.is_dir():
-                    parser.error(f"No existe directorio DLC: {dlc_path}")
+                    parser.error(f"DLC directory does not exist: {dlc_path}")
                 dlc_dir = dlc_path
             try:
                 resolver = build_tlk_resolver(base_tlk_path=tlk_path, dlc_dir=dlc_dir)
             except TlkFormatError as exc:
-                parser.exit(status=2, message=f"Error leyendo TLK: {exc}\n")
+                parser.exit(status=2, message=f"Error reading TLK: {exc}\n")
             conversations = resolve_conversations_tlk(conversations, resolver)
 
         payload = build_output_payload(
@@ -206,11 +206,11 @@ def main(argv: list[str] | None = None) -> int:
         )
         validate_output_payload(payload)
         output_path = write_output_json(output_path=args.output, payload=payload, pretty=args.pretty)
-        print(f"Output JSON escrito: {output_path}")
+        print(f"Output JSON written: {output_path}")
 
         warning_total = int(payload["summary"]["warnings_total"])
         if warning_total > 0:
-            print(f"Warnings detectados: {warning_total}")
+            print(f"Warnings detected: {warning_total}")
             for conversation in conversations:
                 if conversation.warnings:
                     print(
@@ -219,7 +219,7 @@ def main(argv: list[str] | None = None) -> int:
                         f"warnings={';'.join(conversation.warnings)}"
                     )
         if errors:
-            print(f"Conversaciones con error: {len(errors)}")
+            print(f"Conversations with errors: {len(errors)}")
             for item in errors:
                 print(
                     f"- error id={item.get('id')} "
@@ -243,7 +243,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.phase3_report:
         output_path = write_phase3_report(input_path, args.phase3_report, pretty=args.pretty)
-        print(f"Phase3 report escrito: {output_path}")
+        print(f"Phase 3 report written: {output_path}")
 
     if args.validate_bioconversation_stubs:
         report = package.validate_bioconversation_stubs()
@@ -259,5 +259,9 @@ def main(argv: list[str] | None = None) -> int:
             return 3
 
     if args.strict_validation and not args.validate_bioconversation_stubs:
-        parser.error("--strict-validation requiere --validate-bioconversation-stubs")
+        parser.error("--strict-validation requires --validate-bioconversation-stubs")
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

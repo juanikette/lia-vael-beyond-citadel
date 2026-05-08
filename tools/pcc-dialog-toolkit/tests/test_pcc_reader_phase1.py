@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from pcc_dialog_toolkit.pcc import PccFormatError, read_pcc
+from pcc import PccFormatError, read_pcc
 
 
 def _u_string(value: str) -> bytes:

@@ -5,7 +5,7 @@ import struct
 import sys
 from pathlib import Path
 
-from pcc_dialog_toolkit.pcc import read_pcc
+from pcc import read_pcc
 
 
 def _u_string(value: str) -> bytes:
@@ -69,7 +69,7 @@ def test_phase2_cli_lists_bioconversations(tmp_path: Path) -> None:
         [
             sys.executable,
             "-m",
-            "pcc_dialog_toolkit",
+            "cli",
             str(pcc_path),
             "--list-bioconversations",
         ],

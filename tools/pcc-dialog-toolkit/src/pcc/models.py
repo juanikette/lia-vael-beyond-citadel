@@ -143,21 +143,21 @@ class PccPackage:
         return rows
 
     def parse_bioconversation_stubs(self) -> list[dict[str, object]]:
-        from pcc_dialog_toolkit.dialogue import parse_all_bioconversation_stubs
+        from dialogue import parse_all_bioconversation_stubs
 
         return [item.to_dict() for item in parse_all_bioconversation_stubs(self)]
 
     def inspect_bioconversation_row_payloads(self) -> list[dict[str, object]]:
-        from pcc_dialog_toolkit.dialogue import inspect_bioconversation_row_payloads
+        from dialogue import inspect_bioconversation_row_payloads
 
         return inspect_bioconversation_row_payloads(self)
 
     def validate_bioconversation_stubs(self) -> list[dict[str, object]]:
-        from pcc_dialog_toolkit.dialogue import validate_all_bioconversation_stubs
+        from dialogue import validate_all_bioconversation_stubs
 
         return validate_all_bioconversation_stubs(self)
 
     def summarize_bioconversation_validation(self) -> dict[str, object]:
-        from pcc_dialog_toolkit.dialogue import summarize_stub_validation
+        from dialogue import summarize_stub_validation
 
         return summarize_stub_validation(self.validate_bioconversation_stubs())

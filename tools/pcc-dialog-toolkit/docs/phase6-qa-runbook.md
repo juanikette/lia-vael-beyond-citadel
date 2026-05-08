@@ -1,82 +1,82 @@
-# Fase 6 - QA con muestras OT/LE y validacion contra LEX
+# Phase 6 - QA with OT/LE samples and LEX validation
 
-Objetivo: validar el MVP (`schema_version=0.1`) con evidencia reproducible en ME2 OT y LE2, contrastando resultados puntuales con baseline de LegendaryExplorer (LEX).
+Goal: validate the MVP (`schema_version=0.1`) with reproducible evidence on ME2 OT and LE2, comparing targeted results against the LegendaryExplorer (LEX) baseline.
 
-## Plan operativo
+## Operational plan
 
-1. Preparar corpus fijo de muestras por perfil (`OT` y `LE2`).
-2. Ejecutar extraccion JSON versionada por muestra con TLK base + DLC.
-3. Consolidar metricas de salud (`ok/failed/warnings`) por corrida.
-4. Verificar lineas puntuales (`StrRef`, `line_text`, links, speaker tags) contra LEX.
-5. Registrar incidencias no bloqueantes y decidir congelamiento `v0.1.0`.
+1. Prepare a fixed sample corpus per profile (`OT` and `LE2`).
+2. Run versioned JSON extraction per sample with base TLK + DLC.
+3. Consolidate health metrics (`ok/failed/warnings`) for each run.
+4. Verify control lines (`StrRef`, `line_text`, links, speaker tags) against LEX.
+5. Log non-blocking issues and decide `v0.1.0` freeze readiness.
 
-## Prerrequisitos
+## Prerequisites
 
-- `python` con entorno del toolkit activo.
-- `lzallright` instalado para PCC OT comprimidos.
-- Rutas locales validas a:
+- `python` with the toolkit environment active.
+- `lzallright` installed for compressed OT PCC files.
+- Valid local paths to:
   - ME2 OT (`BioGame/CookedPC`, `BIOGame_INT.tlk`, `BioGame/DLC`)
   - LE2 (`Game/ME2/BioGame/CookedPCConsole`, `BIOGame_INT.tlk`, `DLC`)
 
-## Muestras sugeridas
+## Suggested samples
 
-Usar al menos 3 PCC por perfil. Si hay disponibilidad, preferir 5 para mayor cobertura.
+Use at least 3 PCC files per profile. If available, prefer 5 for better coverage.
 
-- OT recomendadas:
+- Recommended OT:
   - `BioD_CitHub_LOC_INT.pcc`
   - `BioD_CitHub_300Dialogue_LOC_INT.pcc`
   - `BioD_CitHub_230Baily_LOC_INT.pcc`
   - `BioD_CitAsL_LOC_INT.pcc`
   - `BioD_CitGrL_300MeetTheMole_LOC_INT.pcc`
-- LE2 recomendadas:
-  - espejo de nombres si existen en `CookedPCConsole`
-  - si no existen, seleccionar 3-5 `BioD_*LOC_INT.pcc` con `BioConversation`
+- Recommended LE2:
+  - mirror filenames when available in `CookedPCConsole`
+  - otherwise choose 3-5 `BioD_*LOC_INT.pcc` files containing `BioConversation`
 
-## Comando base por muestra
+## Base command per sample
 
 ```bash
-python -m pcc_dialog_toolkit <ruta_pcc> --game <me2|le2> --tlk "<ruta_BIOGame_INT.tlk>" --dlc-dir "<ruta_DLC>" --output "<salida_json>" --pretty
+pcc_dialog_extract <pcc_path> --game <me2|le2> --tlk "<BIOGame_INT.tlk_path>" --dlc-dir "<dlc_path>" --output "<output_json>" --pretty
 ```
 
-## Evidencia minima por muestra
+## Minimum evidence per sample
 
 - `summary.conversations_total`, `summary.conversations_failed`, `summary.warnings_total`.
-- 3-5 lineas de control con:
+- 3-5 control lines with:
   - `conversation_id`
-  - `entry_id` o `reply_id`
+  - `entry_id` or `reply_id`
   - `line_strref`
   - `line_text`
-- Estado de parseo resiliente:
-  - `errors[]` vacio o listado de fallas con `export_index`.
+- Resilient-parse status:
+  - `errors[]` empty, or explicit failures with `export_index`.
 
-## Checklist de validacion contra LEX
+## LEX validation checklist
 
-Para cada linea de control:
+For each control line:
 
-1. Abrir la conversacion equivalente en LEX.
-2. Confirmar que `StrRef` coincide.
-3. Confirmar que el texto resuelto (`line_text`) coincide con LEX/TLK efectivo.
-4. Confirmar coherencia de links (`reply_links`, `target_entry_id`) y speaker tags.
-5. Registrar `OK` o `Mismatch` con detalle.
+1. Open the equivalent conversation in LEX.
+2. Confirm `StrRef` matches.
+3. Confirm resolved text (`line_text`) matches effective LEX/TLK output.
+4. Confirm link consistency (`reply_links`, `target_entry_id`) and speaker tags.
+5. Log `OK` or `Mismatch` with details.
 
-## Criterio de paso Fase 6
+## Phase 6 pass criteria
 
-- OT: corpus objetivo ejecuta sin crashes y sin fallos criticos.
-- LE2: corpus objetivo ejecuta sin crashes y sin fallos criticos.
-- Validacion puntual contra LEX completa en ambos perfiles.
-- Incidencias restantes clasificadas como no bloqueantes para `v0.1.0`.
+- OT: target corpus runs without crashes and without critical failures.
+- LE2: target corpus runs without crashes and without critical failures.
+- Targeted LEX validation completed on both profiles.
+- Remaining issues classified as non-blocking for `v0.1.0`.
 
-## Contingencia si no hay instalacion LE2 local
+## Contingency if no local LE2 installation is available
 
-Si no existe una instalacion local de LE2, aplicar cierre parcial controlado:
+If a local LE2 installation is unavailable, apply a controlled partial closure:
 
-- Ejecutar QA OT ampliado (>=25 muestras `BioD_*LOC_INT.pcc`) para subir confianza del pipeline.
-- Mantener comparacion puntual contra LEX para las lineas de control OT.
-- Marcar validacion LE2 como `pendiente por entorno` en Notion.
-- No cerrar la cobertura OT/LE como completa; registrar `v0.1.0-rc` (OT validado, LE2 diferido).
+- Run expanded OT QA (>=25 `BioD_*LOC_INT.pcc` samples) to increase confidence.
+- Keep targeted LEX comparison for OT control lines.
+- Mark LE2 validation as `environment pending` in Notion.
+- Do not mark OT/LE coverage as complete; keep `v0.1.0-rc` status (OT validated, LE2 deferred).
 
-## Salidas recomendadas
+## Recommended outputs
 
-- JSON por muestra en `tools/pcc-dialog-toolkit/output/phase6-<perfil>/`.
-- Reporte consolidado por perfil (`phase6-ot-report.json`, `phase6-le2-report.json`).
-- Nota de cierre en Notion (`Fase 6 - QA del MVP`).
+- Per-sample JSON in `tools/pcc-dialog-toolkit/output/phase6-<profile>/`.
+- Consolidated report per profile (`phase6-ot-report.json`, `phase6-le2-report.json`).
+- Closure note in Notion (`Phase 6 - MVP QA`).
