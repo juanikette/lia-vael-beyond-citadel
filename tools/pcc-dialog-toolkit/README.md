@@ -40,6 +40,7 @@ pcc_dialog_extract path/to/file.pcc --scan-tlk-reference "Lia'Vael" --tlk ".../B
 pcc_dialog_extract path/to/file.pcc --trace-strref-usage 253865 --trace-strref-usage 260225 --tlk ".../BIOGame_INT.tlk" --dlc-dir ".../BioGame/DLC"
 pcc_dialog_extract --lia-vael-evidence-report reports/lia-vael-evidence.json --tlk ".../CookedPC/BIOGame_INT.tlk" --dlc-dir ".../BioGame/DLC" --pretty
 pcc_dialog_extract --evidence-report reports/custom-evidence.json --evidence-query "tali'zorah" --evidence-query "rally the crowd" --tlk ".../CookedPC/BIOGame_INT.tlk" --dlc-dir ".../BioGame/DLC" --pretty
+pcc_dialog_extract --evidence-report reports/custom-evidence.json --evidence-query "rally the crowd" --candidate-index reports/candidates.json --tlk ".../CookedPC/BIOGame_INT.tlk" --dlc-dir ".../BioGame/DLC" --pretty
 pcc_dialog_extract path/to/file.pcc --dump-bioconversation-stub --pretty
 pcc_dialog_extract path/to/file.pcc --dump-bioconversation-row-payloads --pretty
 pcc_dialog_extract path/to/file.pcc --validate-bioconversation-stubs --pretty
@@ -79,6 +80,20 @@ If warnings or conversation-level errors are present, it also prints them to the
 `--lia-vael-evidence-report` runs a single consolidated sweep: it finds Lia'Vael-related TLK strings first, then traces those `StrRef` IDs across all base + DLC `.pcc` conversation stubs and writes one JSON report.
 
 `--evidence-report` is the generalized variant: provide one or more `--evidence-query` values and it generates the same consolidated TLK + StrRef usage report for any narrative target.
+
+Evidence reports now include two linkage sections:
+- `strref_usages`: resolved hits from parsed `BioConversation` nodes.
+- `raw_export_hits`: fallback hits from raw i32 scans on likely dialogue containers (`*Conversation*`, `*Sequence*`, `*SeqAct*`, `*Plot*`) to expose out-of-subset linkage candidates.
+
+For performance, evidence reports first prefilter candidate `.pcc` files by raw `StrRef` binary signatures before running package-level parsing.
+
+Optional hybrid mode (Go scanner):
+
+```bash
+go run ./cmd/pcc-scan --root-biogame ".../BioGame" --strref 282425 --strref 302426 --out reports/candidates.json
+```
+
+Then pass that index to Python evidence extraction with `--candidate-index`.
 
 ## JSON output (summary)
 

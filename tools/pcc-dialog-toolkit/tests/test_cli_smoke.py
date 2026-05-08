@@ -1,7 +1,8 @@
 import subprocess
 import sys
+from pathlib import Path
 
-from cli import _conversation_lia_vael_context, _conversation_match_reasons, _find_strref_usages
+from cli import _conversation_lia_vael_context, _conversation_match_reasons, _find_strref_usages, _load_candidate_index
 from model.ast import Conversation, EntryNode, ReplyNode, Speaker
 
 
@@ -128,3 +129,11 @@ def test_find_strref_usages_returns_entry_and_reply_matches() -> None:
     assert len(rows) == 2
     assert any(row["kind"] == "entry" and row["strref"] == 123 for row in rows)
     assert any(row["kind"] == "reply" and row["strref"] == 456 for row in rows)
+
+
+def test_load_candidate_index_reads_candidates(tmp_path: Path) -> None:
+    index_path = tmp_path / "candidates.json"
+    index_path.write_text('{"candidates":["C:/a.pcc","C:/b.pcc"]}', encoding="utf-8")
+    rows = _load_candidate_index(index_path)
+    assert len(rows) == 2
+    assert rows[0].name == "a.pcc"

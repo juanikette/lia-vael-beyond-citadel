@@ -167,6 +167,16 @@ Minimum flags:
   - contextual hits,
   - TLK-only references with no conversation linkage.
 
+### Phase 8 - Container coverage expansion for conversation linkage
+- Identify the container/path where TLK-backed narrative lines are linked outside the current `BioConversation` extraction subset.
+- Add parser support for additional conversation-bearing structures discovered in ME2 OT/LE packages.
+- Extend extraction to surface linkage evidence for lines currently reported as `TLK-only`.
+- Add targeted regression probes for:
+  - Tali romance/intimacy sequence context,
+  - Liara/Shepard cabin exchange ("Miss vas Normandy" reference chain),
+  - Tali trial prompt branch (`[Rally the crowd]`).
+- Keep outputs additive and traceable, preserving current JSON contract while introducing explicit parse-mode/source markers for newly covered containers.
+
 ## MVP acceptance criteria
 
 - Given a valid `.pcc` with `BioConversation`, generate `output.json` without crashing.
@@ -185,6 +195,6 @@ Minimum flags:
 
 ## Immediate next step
 
-1. Land Phase 7 CLI commands and tests for TLK scanning + StrRef usage tracing.
-2. Run full-corpus evidence sweep (base + DLC) and store machine-readable reports.
-3. Cross-check unresolved TLK-only references against LegendaryExplorer to validate whether linkage is expected or genuinely absent.
+1. Use LegendaryExplorer references to map non-`BioConversation` linkage containers for target StrRefs.
+2. Implement minimal read path for the first validated container and emit source-tagged linkage rows.
+3. Re-run the three narrative probes and compare before/after linkage coverage in evidence reports.

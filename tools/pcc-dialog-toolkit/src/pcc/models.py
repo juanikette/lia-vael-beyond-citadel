@@ -154,6 +154,76 @@ class PccPackage:
             )
         return rows
 
+    def scan_exports_for_i32_values(
+        self,
+        targets: set[int],
+        *,
+        class_name_contains: tuple[str, ...] | None = None,
+        max_offsets_per_export: int = 6,
+    ) -> list[dict[str, object]]:
+        from .reader import _read_i32
+        import struct
+
+        if not targets:
+            return []
+
+        target_bytes = {value: struct.pack("<i", value) for value in targets}
+        if not any(blob in self.raw_data for blob in target_bytes.values()):
+            return []
+
+        lowered_filters = tuple(item.casefold() for item in class_name_contains or ())
+        rows: list[dict[str, object]] = []
+
+        for item in self.exports:
+            if item.serial_size <= 0:
+                continue
+
+            class_name = item.class_name or ""
+            if lowered_filters and not any(token in class_name.casefold() for token in lowered_filters):
+                continue
+
+            start = item.serial_offset
+            end = item.serial_offset + item.serial_size
+            if start < 0 or end > len(self.raw_data) or start >= end:
+                continue
+
+            payload = self.raw_data[start:end]
+            if not any(blob in payload for blob in target_bytes.values()):
+                continue
+
+            local_hits: dict[int, list[int]] = {}
+            cursor = start
+            while cursor + 4 <= end:
+                value = _read_i32(self.raw_data, cursor)
+                if value in targets:
+                    offsets = local_hits.setdefault(value, [])
+                    if len(offsets) < max_offsets_per_export:
+                        offsets.append(cursor - start)
+                cursor += 4
+
+            if not local_hits:
+                continue
+
+            rows.append(
+                {
+                    "export_index": item.index,
+                    "export_name": item.object_name,
+                    "class_name": item.class_name,
+                    "serial_offset": item.serial_offset,
+                    "serial_size": item.serial_size,
+                    "hits": [
+                        {
+                            "strref": strref,
+                            "offsets": offsets,
+                            "count": len(offsets),
+                        }
+                        for strref, offsets in sorted(local_hits.items())
+                    ],
+                }
+            )
+
+        return rows
+
     def inspect_bioconversation_properties(self) -> list[dict[str, object]]:
         from .properties import extract_bioconversation_key_properties, read_array_property_count
 
