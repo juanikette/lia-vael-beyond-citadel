@@ -7,7 +7,12 @@ import sys
 from pathlib import Path
 
 from pcc_dialog_toolkit.pcc import read_pcc
-from pcc_dialog_toolkit.tlk import build_tlk_resolver, read_tlk, resolve_tlk_string
+from pcc_dialog_toolkit.tlk import (
+    build_tlk_resolver,
+    find_dlc_tlk_files,
+    read_tlk,
+    resolve_tlk_string,
+)
 
 
 def _u_string(value: str) -> bytes:
@@ -199,3 +204,51 @@ def test_phase4_package_stub_still_available_without_tlk(tmp_path: Path) -> None
     package = read_pcc(pcc_path)
     rows = package.parse_bioconversation_stubs()
     assert rows[0]["entries"][0]["line_text"] is None
+
+
+def test_find_dlc_tlk_files_prefers_mount_priority(tmp_path: Path) -> None:
+    dlc_dir = tmp_path / "DLC"
+
+    low = dlc_dir / "DLC_MOD_LOW" / "CookedPC"
+    low.mkdir(parents=True)
+    (low.parent / "Mount.dlc").write_text("MountPriority=100\n", encoding="utf-8")
+    (low / "DLC_MOD_LOW_INT.tlk").write_bytes(_build_tlk({5000: "A"}))
+
+    high = dlc_dir / "DLC_MOD_HIGH" / "CookedPCConsole"
+    high.mkdir(parents=True)
+    (high.parent / "Mount.dlc").write_text("MountPriority=200\n", encoding="utf-8")
+    (high / "DLC_MOD_HIGH_INT.tlk").write_bytes(_build_tlk({5000: "B"}))
+
+    found = find_dlc_tlk_files(dlc_dir)
+    assert len(found) == 2
+    assert found[0].name == "DLC_MOD_HIGH_INT.tlk"
+    assert found[1].name == "DLC_MOD_LOW_INT.tlk"
+
+
+def test_find_dlc_tlk_files_skips_test_tlks_by_default(tmp_path: Path) -> None:
+    dlc_dir = tmp_path / "DLC"
+    folder = dlc_dir / "DLC_MOD_ONE" / "CookedPC"
+    folder.mkdir(parents=True)
+    (folder.parent / "Mount.dlc").write_text("MountPriority=10\n", encoding="utf-8")
+    (folder / "DLC_MOD_ONE_INT.tlk").write_bytes(_build_tlk({5000: "A"}))
+    (folder / "DLC_MOD_ONE_Test_INT.tlk").write_bytes(_build_tlk({5000: "B"}))
+
+    found_default = find_dlc_tlk_files(dlc_dir)
+    found_with_test = find_dlc_tlk_files(dlc_dir, include_test_tlks=True)
+
+    assert [item.name for item in found_default] == ["DLC_MOD_ONE_INT.tlk"]
+    assert sorted(item.name for item in found_with_test) == [
+        "DLC_MOD_ONE_INT.tlk",
+        "DLC_MOD_ONE_Test_INT.tlk",
+    ]
+
+
+def test_find_dlc_tlk_files_falls_back_to_recursive_scan(tmp_path: Path) -> None:
+    dlc_dir = tmp_path / "DLC"
+    non_dlc = dlc_dir / "RandomFolder" / "CookedPC"
+    non_dlc.mkdir(parents=True)
+    (non_dlc / "Random_INT.tlk").write_bytes(_build_tlk({5000: "A"}))
+
+    found = find_dlc_tlk_files(dlc_dir)
+    assert len(found) == 1
+    assert found[0].name == "Random_INT.tlk"

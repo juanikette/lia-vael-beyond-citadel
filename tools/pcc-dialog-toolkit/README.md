@@ -24,6 +24,7 @@ pcc_dialog_extract path/al/archivo.pcc --dump-bioconversation-stub --tlk ".../BI
 
 Cuando se usa `--dump-bioconversation-stub` junto con `--tlk`, el CLI resuelve `line_text` para `EntryNode` y `ReplyNode`.
 Si se agrega `--dlc-dir`, los TLKs de DLC se cargan por prioridad (`MountPriority`) y pueden sobreescribir strings del TLK base.
+Por defecto, el resolver ignora TLKs de prueba (`*_Test_INT.tlk`) para priorizar contenido runtime real.
 
 `--validate-bioconversation-stubs` marca `needs_schema_review=true` cuando el perfil es desconocido o el parseo sugiere desajuste de esquema.
 
