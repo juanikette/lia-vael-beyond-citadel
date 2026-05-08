@@ -4,7 +4,9 @@ import argparse
 import json
 from pathlib import Path
 
+from pcc_dialog_toolkit.dialogue import parse_all_bioconversation_stubs
 from pcc_dialog_toolkit.pcc import PccFormatError, read_pcc
+from pcc_dialog_toolkit.tlk import TlkFormatError, build_tlk_resolver, resolve_conversations_tlk
 from pcc_dialog_toolkit.validation import write_phase3_batch_report, write_phase3_report
 
 
@@ -152,11 +154,27 @@ def main(argv: list[str] | None = None) -> int:
                 )
 
     if args.dump_bioconversation_stub:
-        conversations = package.parse_bioconversation_stubs()
+        conversations = parse_all_bioconversation_stubs(package)
+        if args.tlk:
+            tlk_path = Path(args.tlk)
+            if not tlk_path.exists() or not tlk_path.is_file():
+                parser.error(f"No existe TLK base: {tlk_path}")
+            dlc_dir = None
+            if args.dlc_dir:
+                dlc_path = Path(args.dlc_dir)
+                if not dlc_path.exists() or not dlc_path.is_dir():
+                    parser.error(f"No existe directorio DLC: {dlc_path}")
+                dlc_dir = dlc_path
+            try:
+                resolver = build_tlk_resolver(base_tlk_path=tlk_path, dlc_dir=dlc_dir)
+            except TlkFormatError as exc:
+                parser.exit(status=2, message=f"Error leyendo TLK: {exc}\n")
+            conversations = resolve_conversations_tlk(conversations, resolver)
+        conversations_payload = [row.to_dict() for row in conversations]
         if args.pretty:
-            print(json.dumps(conversations, indent=2, ensure_ascii=False))
+            print(json.dumps(conversations_payload, indent=2, ensure_ascii=False))
         else:
-            print(json.dumps(conversations, ensure_ascii=False))
+            print(json.dumps(conversations_payload, ensure_ascii=False))
 
     if args.dump_bioconversation_row_payloads:
         payloads = package.inspect_bioconversation_row_payloads()

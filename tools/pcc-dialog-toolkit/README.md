@@ -4,7 +4,8 @@ MVP para extraer conversaciones `BioConversation` desde archivos `.pcc` (Mass Ef
 
 ## Estado actual
 
-- Fase 3 en progreso: bootstrap de parseo de propiedades clave (`EntryList`, `ReplyList`, `SpeakerList`).
+- Fase 3 cerrada: parse semantico de `BioConversation` validado en corpus ME2 OT LOC.
+- Fase 4 en progreso: resolucion `StrRef` desde TLK base con soporte de overrides DLC.
 - Soporte ME2 OT comprimido (LZO) requiere `lzallright`.
 
 ## Uso (actual)
@@ -18,7 +19,11 @@ pcc_dialog_extract path/al/archivo.pcc --validate-bioconversation-stubs --pretty
 pcc_dialog_extract path/al/archivo.pcc --validate-bioconversation-stubs --strict-validation
 pcc_dialog_extract path/al/archivo.pcc --phase3-report reports/phase3-sample.json --pretty
 pcc_dialog_extract --phase3-batch-dir samples/me2_ot --phase3-batch-glob "*.pcc" --phase3-batch-report reports/phase3-batch-me2ot.json --pretty
+pcc_dialog_extract path/al/archivo.pcc --dump-bioconversation-stub --tlk ".../BIOGame_INT.tlk" --dlc-dir ".../BioGame/DLC" --pretty
 ```
+
+Cuando se usa `--dump-bioconversation-stub` junto con `--tlk`, el CLI resuelve `line_text` para `EntryNode` y `ReplyNode`.
+Si se agrega `--dlc-dir`, los TLKs de DLC se cargan por prioridad (`MountPriority`) y pueden sobreescribir strings del TLK base.
 
 `--validate-bioconversation-stubs` marca `needs_schema_review=true` cuando el perfil es desconocido o el parseo sugiere desajuste de esquema.
 

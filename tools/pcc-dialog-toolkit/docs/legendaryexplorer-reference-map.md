@@ -40,3 +40,9 @@ Al cerrar cada fase, agregar aqui:
 - Archivo/clase LEX consultada: `LegendaryExplorerCore/Packages/MEPackage.cs` (lectura de export data y estructura de property stream a alto nivel).
 - Decision toolkit: parser minimo de property tags para inspeccionar `EntryList`, `ReplyList`, `SpeakerList` antes de construir AST completo.
 - Diferencia OT vs LE detectada: en este bootstrap, el framing base del property tag usado para arrays funciona en fixtures ME2 OT; validacion adicional sobre muestras LE2 reales queda para cierre formal de fase.
+
+## Fase 4 (inicio)
+
+- Archivo/clase LEX consultada: `LegendaryExplorerCore/TLK/ME2ME3/ME2ME3TLKBase.cs`, `LegendaryExplorerCore/TLK/ME2ME3/ME2ME3TalkFile.cs`, `LegendaryExplorerCore/TLK/ME2ME3/ME2ME3LazyTLK.cs`, `LegendaryExplorerCore/TLK/TLKBitArray.cs`, `LegendaryExplorerCore/TLK/ME2TalkFiles.cs`.
+- Decision toolkit: implementar lector TLK ME2/ME3 compatible con header + tabla `StringID/BitOffset` + arbol Huffman, y resolver `StrRef` sobre AST con prioridad DLC por `MountPriority` y fallback a TLK base.
+- Diferencia OT vs LE detectada: para flujo de lookup, el orden de precedencia por lista cargada y formato TLK compartido en ME2/LE2 permite una ruta comun inicial; quedan pendientes casos LE1/ME1 (formato distinto) y validacion ampliada en muestras reales.
