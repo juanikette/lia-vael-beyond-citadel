@@ -13,13 +13,20 @@ MVP para extraer conversaciones `BioConversation` desde archivos `.pcc` (Mass Ef
   - `src/serialize/`
   - `src/model/`
 
-## Estado actual
+## Que hace la herramienta
 
-- Fase 3 cerrada: parse semantico de `BioConversation` validado en corpus ME2 OT LOC.
-- Fase 4 cerrada: resolucion `StrRef` desde TLK base con soporte de overrides DLC.
-- Fase 5 cerrada: serializer JSON versionado + flujo CLI robusto con manejo de errores por conversacion.
-- Fase 6 en progreso: QA MVP con muestras OT/LE y validacion puntual contra LEX.
-- Soporte ME2 OT comprimido (LZO) requiere `lzallright`.
+- Lee paquetes `.pcc` de Mass Effect y detecta exports `BioConversation`.
+- Extrae stubs de dialogo (`entries`, `replies`, `speakers`) en JSON.
+- Puede resolver `StrRef` contra TLK base y overrides de DLC.
+- Genera salida JSON versionada con resumen de warnings/errores.
+- Permite validacion estricta para usar la CLI como gate automatizable.
+
+## Alcance y limites
+
+- Soporta perfiles OT/LE orientados a conversaciones `BioConversation`.
+- Para PCC OT comprimidos (LZO) requiere dependencia `lzallright`.
+- Si una conversacion falla, el flujo resiliente continua y reporta error por item.
+- Si el perfil o schema no coincide, marca `needs_schema_review`.
 
 ## Uso (actual)
 
@@ -58,15 +65,13 @@ Si hay warnings o errores por conversacion, tambien los imprime en consola para 
 
 `--validate-bioconversation-stubs` marca `needs_schema_review=true` cuando el perfil es desconocido o el parseo sugiere desajuste de esquema.
 
-Flujo sugerido de cierre Fase 3 con muestras reales:
+## Salida JSON (resumen)
 
-1. Generar reporte por muestra con `--phase3-report`.
-2. Revisar `summary.needs_schema_review` y `validation_items`.
-3. Repetir con `--validate-bioconversation-stubs --strict-validation` para usar exit code como gate.
-4. Para varias muestras, usar `--phase3-batch-report` y revisar el `summary` agregado.
+La salida `--output` incluye:
 
-Guia operativa detallada: `docs/phase3-closure-playbook.md`.
-
-Guia operativa Fase 6: `docs/phase6-qa-runbook.md`.
-
-Notas de release RC (scope OT): `docs/release-v0.1.0-rc.md`.
+- `schema_version`
+- `tool_version`
+- `input`
+- `summary`
+- `conversations`
+- `errors`
