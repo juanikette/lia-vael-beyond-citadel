@@ -158,6 +158,15 @@ Minimum flags:
 - Compare selected lines against in-game/LEX results.
 - Freeze extractor `v0.1.0`.
 
+### Phase 7 - Reference tracing and narrative evidence
+- Add CLI support to search TLK catalogs directly for narrative references (`--scan-tlk-reference`).
+- Add CLI support to trace target `StrRef` IDs back to parsed conversation nodes (`--trace-strref-usage`).
+- Add contextual profile scanning for indirect references when explicit names are absent (`--find-context-profile lia-vael`).
+- Produce reproducible evidence reports separating:
+  - direct-name hits,
+  - contextual hits,
+  - TLK-only references with no conversation linkage.
+
 ## MVP acceptance criteria
 
 - Given a valid `.pcc` with `BioConversation`, generate `output.json` without crashing.
@@ -176,6 +185,6 @@ Minimum flags:
 
 ## Immediate next step
 
-1. Initialize Python skeleton and minimal CLI.
-2. Implement `pcc_reader` (header + names + exports).
-3. Deliver a command that lists `BioConversation` per file as the first verifiable milestone.
+1. Land Phase 7 CLI commands and tests for TLK scanning + StrRef usage tracing.
+2. Run full-corpus evidence sweep (base + DLC) and store machine-readable reports.
+3. Cross-check unresolved TLK-only references against LegendaryExplorer to validate whether linkage is expected or genuinely absent.

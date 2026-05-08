@@ -10,11 +10,218 @@ from dialogue import (
 )
 from pcc import PccFormatError, read_pcc
 from serialize import build_output_payload, validate_output_payload, write_output_json
-from tlk import TlkFormatError, build_tlk_resolver, resolve_conversations_tlk
+from tlk import TlkFormatError, build_tlk_resolver, find_dlc_tlk_files, read_tlk, resolve_conversations_tlk, resolve_tlk_string
 from validation import write_phase3_batch_report, write_phase3_report
 
 
 GAMES = ("me1", "me2", "me3", "le1", "le2", "le3")
+
+
+def _contains_query(value: str | None, query: str) -> bool:
+    if not value:
+        return False
+    return query.casefold() in value.casefold()
+
+
+def _conversation_match_reasons(conversation, query: str) -> list[str]:
+    reasons: list[str] = []
+
+    if _contains_query(conversation.id, query):
+        reasons.append("conversation_id")
+
+    for entry in conversation.entries:
+        if _contains_query(entry.speaker_tag, query):
+            reasons.append("entry_speaker_tag")
+            break
+    for entry in conversation.entries:
+        if _contains_query(entry.listener_tag, query):
+            reasons.append("entry_listener_tag")
+            break
+    for entry in conversation.entries:
+        if _contains_query(entry.line_text, query):
+            reasons.append("entry_line_text")
+            break
+
+    for reply in conversation.replies:
+        if _contains_query(reply.line_text, query):
+            reasons.append("reply_line_text")
+            break
+
+    for speaker in conversation.speakers:
+        if _contains_query(speaker.tag, query):
+            reasons.append("speaker_tag")
+            break
+        if _contains_query(speaker.display_name, query):
+            reasons.append("speaker_display_name")
+            break
+
+    return reasons
+
+
+def _conversation_lia_vael_context(conversation) -> tuple[int, list[str], list[str]]:
+    markers = {
+        "quarian": 3,
+        "migrant fleet": 3,
+        "pilgrimage": 2,
+        "citadel": 1,
+        "zakera": 2,
+        "c-sec": 2,
+        "volus": 2,
+        "contract": 1,
+        "merchant": 1,
+        "accused": 1,
+        "framed": 1,
+    }
+
+    fields: list[str] = [conversation.id or ""]
+    for entry in conversation.entries:
+        fields.extend([entry.speaker_tag or "", entry.listener_tag or "", entry.line_text or ""])
+    for reply in conversation.replies:
+        fields.append(reply.line_text or "")
+    for speaker in conversation.speakers:
+        fields.extend([speaker.tag or "", speaker.display_name or ""])
+
+    blob = "\n".join(fields)
+    low = blob.casefold()
+
+    score = 0
+    hits: list[str] = []
+    for keyword, weight in markers.items():
+        if keyword in low:
+            score += weight
+            hits.append(keyword)
+
+    snippets: list[str] = []
+    for entry in conversation.entries:
+        text = entry.line_text or ""
+        text_low = text.casefold()
+        if any(keyword in text_low for keyword in hits):
+            snippets.append(text)
+            if len(snippets) >= 3:
+                break
+    for reply in conversation.replies:
+        if len(snippets) >= 3:
+            break
+        text = reply.line_text or ""
+        text_low = text.casefold()
+        if any(keyword in text_low for keyword in hits):
+            snippets.append(text)
+
+    return score, sorted(set(hits)), snippets
+
+
+def _find_strref_usages(conversations, targets: set[int]) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for conversation in conversations:
+        for entry in conversation.entries:
+            if entry.line_strref in targets:
+                rows.append(
+                    {
+                        "kind": "entry",
+                        "conversation_id": conversation.id,
+                        "export_index": conversation.export_index,
+                        "node_id": entry.id,
+                        "strref": entry.line_strref,
+                        "line_text": entry.line_text,
+                    }
+                )
+        for reply in conversation.replies:
+            if reply.line_strref in targets:
+                rows.append(
+                    {
+                        "kind": "reply",
+                        "conversation_id": conversation.id,
+                        "export_index": conversation.export_index,
+                        "node_id": reply.id,
+                        "strref": reply.line_strref,
+                        "line_text": reply.line_text,
+                    }
+                )
+    return rows
+
+
+def _infer_biogame_root_from_tlk(base_tlk: Path) -> Path | None:
+    # Expected: <BioGame>/CookedPC/BIOGame_INT.tlk
+    cooked = base_tlk.parent
+    if cooked.name.casefold().startswith("cookedpc") and cooked.parent.exists():
+        return cooked.parent
+    return None
+
+
+def _build_evidence_report(*, base_tlk: Path, dlc_dir: Path, queries: list[str]) -> dict[str, object]:
+    normalized_queries = [item.strip().casefold() for item in queries if item.strip()]
+    if not normalized_queries:
+        raise ValueError("At least one non-empty query is required")
+
+    tlk_paths = [base_tlk] + find_dlc_tlk_files(dlc_dir)
+    tlk_hits: list[dict[str, object]] = []
+    target_strrefs: set[int] = set()
+    for tlk_path in tlk_paths:
+        tlk_file = read_tlk(tlk_path)
+        for string_id in tlk_file.male_stringrefs:
+            value = resolve_tlk_string(tlk_file, string_id, male=True)
+            if value is None:
+                continue
+            low = value.casefold()
+            hit_queries = [query for query in normalized_queries if query in low]
+            if not hit_queries:
+                continue
+            target_strrefs.add(int(string_id))
+            tlk_hits.append(
+                {
+                    "tlk": str(tlk_path),
+                    "strref": int(string_id),
+                    "queries": hit_queries,
+                    "text": value,
+                }
+            )
+
+    biogame_root = _infer_biogame_root_from_tlk(base_tlk)
+    if biogame_root is None:
+        raise ValueError("Could not infer BioGame root from --tlk path")
+
+    pcc_files = sorted((biogame_root / "CookedPC").glob("*.pcc")) + sorted(dlc_dir.rglob("*.pcc"))
+    usages: list[dict[str, object]] = []
+    pcc_errors: list[dict[str, str]] = []
+    conversations_total = 0
+
+    for pcc_path in pcc_files:
+        try:
+            package = read_pcc(pcc_path)
+        except (PccFormatError, OSError) as exc:
+            pcc_errors.append({"file": str(pcc_path), "stage": "read_pcc", "error": str(exc)})
+            continue
+
+        if not package.iter_exports(class_name="BioConversation"):
+            continue
+
+        try:
+            conversations = parse_all_bioconversation_stubs(package)
+        except (PccFormatError, OSError) as exc:
+            pcc_errors.append({"file": str(pcc_path), "stage": "parse_conversations", "error": str(exc)})
+            continue
+        conversations_total += len(conversations)
+        rows = _find_strref_usages(conversations, target_strrefs)
+        for row in rows:
+            row["file"] = str(pcc_path)
+            usages.append(row)
+
+    return {
+        "report": "lia-vael-evidence",
+        "queries": normalized_queries,
+        "summary": {
+            "tlk_files_scanned": len(tlk_paths),
+            "tlk_hits": len(tlk_hits),
+            "target_strrefs": len(target_strrefs),
+            "pcc_files_scanned": len(pcc_files),
+            "conversations_total": conversations_total,
+            "strref_usages": len(usages),
+            "pcc_errors": len(pcc_errors),
+        },
+        "tlk_hits": tlk_hits,
+        "strref_usages": usages,
+        "errors": pcc_errors,
+    }
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -37,6 +244,58 @@ def build_parser() -> argparse.ArgumentParser:
         "--inspect-bioconversation-properties",
         action="store_true",
         help="Inspect key BioConversation properties (EntryList/ReplyList/SpeakerList)",
+    )
+    parser.add_argument(
+        "--inspect-bioconversation-owners",
+        action="store_true",
+        help="Inspect BioConversation owner ObjectProperty references",
+    )
+    parser.add_argument(
+        "--find-reference",
+        action="append",
+        default=[],
+        help=(
+            "Find BioConversation references by substring in conversation id, "
+            "speaker/listener tags, and resolved line text. Repeatable."
+        ),
+    )
+    parser.add_argument(
+        "--find-context-profile",
+        choices=("lia-vael",),
+        help="Find contextual matches using a built-in profile.",
+    )
+    parser.add_argument(
+        "--context-min-score",
+        type=int,
+        default=4,
+        help="Minimum context score threshold for --find-context-profile (default: 4).",
+    )
+    parser.add_argument(
+        "--scan-tlk-reference",
+        action="append",
+        default=[],
+        help="Search base TLK and DLC TLKs for one or more substrings. Repeatable.",
+    )
+    parser.add_argument(
+        "--trace-strref-usage",
+        type=int,
+        action="append",
+        default=[],
+        help="Trace one or more StrRef IDs in parsed BioConversation entries/replies. Repeatable.",
+    )
+    parser.add_argument(
+        "--lia-vael-evidence-report",
+        help="Write a consolidated Lia'Vael TLK+StrRef evidence JSON report.",
+    )
+    parser.add_argument(
+        "--evidence-report",
+        help="Write a consolidated TLK+StrRef evidence JSON report for custom queries.",
+    )
+    parser.add_argument(
+        "--evidence-query",
+        action="append",
+        default=[],
+        help="Query used by --evidence-report. Repeatable.",
     )
     parser.add_argument(
         "--dump-bioconversation-property-tags",
@@ -105,6 +364,74 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Phase 3 batch report written: {output_path}")
         return 0
 
+    if args.lia_vael_evidence_report:
+        if not args.tlk:
+            parser.error("--lia-vael-evidence-report requires --tlk")
+        if not args.dlc_dir:
+            parser.error("--lia-vael-evidence-report requires --dlc-dir")
+
+        tlk_path = Path(args.tlk)
+        dlc_path = Path(args.dlc_dir)
+        if not tlk_path.exists() or not tlk_path.is_file():
+            parser.error(f"Base TLK does not exist: {tlk_path}")
+        if not dlc_path.exists() or not dlc_path.is_dir():
+            parser.error(f"DLC directory does not exist: {dlc_path}")
+
+        report = _build_evidence_report(
+            base_tlk=tlk_path,
+            dlc_dir=dlc_path,
+            queries=["lia'vael", "liavael", "vael", "lia vael"],
+        )
+        output_path = Path(args.lia_vael_evidence_report)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(report, indent=2 if args.pretty else None, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        print(f"Lia'Vael evidence report written: {output_path}")
+        print(
+            "Evidence summary: "
+            f"tlk_hits={report['summary']['tlk_hits']} "
+            f"target_strrefs={report['summary']['target_strrefs']} "
+            f"strref_usages={report['summary']['strref_usages']}"
+        )
+        return 0
+
+    if args.evidence_report:
+        if not args.tlk:
+            parser.error("--evidence-report requires --tlk")
+        if not args.dlc_dir:
+            parser.error("--evidence-report requires --dlc-dir")
+        if not args.evidence_query:
+            parser.error("--evidence-report requires at least one --evidence-query")
+
+        tlk_path = Path(args.tlk)
+        dlc_path = Path(args.dlc_dir)
+        if not tlk_path.exists() or not tlk_path.is_file():
+            parser.error(f"Base TLK does not exist: {tlk_path}")
+        if not dlc_path.exists() or not dlc_path.is_dir():
+            parser.error(f"DLC directory does not exist: {dlc_path}")
+
+        report = _build_evidence_report(
+            base_tlk=tlk_path,
+            dlc_dir=dlc_path,
+            queries=[str(item) for item in args.evidence_query],
+        )
+        output_path = Path(args.evidence_report)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(report, indent=2 if args.pretty else None, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        print(f"Evidence report written: {output_path}")
+        print(
+            "Evidence summary: "
+            f"tlk_hits={report['summary']['tlk_hits']} "
+            f"target_strrefs={report['summary']['target_strrefs']} "
+            f"strref_usages={report['summary']['strref_usages']}"
+        )
+        return 0
+
     if not args.input_pcc:
         parser.print_help()
         return 0
@@ -157,6 +484,30 @@ def main(argv: list[str] | None = None) -> int:
                     f"value_offset={prop['value_offset']}"
                 )
 
+    if args.inspect_bioconversation_owners:
+        rows = package.inspect_bioconversation_owners()
+        print(f"BioConversation owner-inspection exports: {len(rows)}")
+        for row in rows:
+            owner = row["owner"]
+            if owner is None:
+                print(
+                    f"- idx={row['index']} "
+                    f"name={row['name']} "
+                    f"owner_property={row['owner_property']} "
+                    f"owner_ref={row['owner_ref']} "
+                    "owner_kind=None owner_name=None"
+                )
+                continue
+            print(
+                f"- idx={row['index']} "
+                f"name={row['name']} "
+                f"owner_property={row['owner_property']} "
+                f"owner_ref={row['owner_ref']} "
+                f"owner_kind={owner.get('kind')} "
+                f"owner_name={owner.get('name')} "
+                f"owner_class={owner.get('class')}"
+            )
+
     if args.dump_bioconversation_stub:
         conversations = parse_all_bioconversation_stubs(package)
         if args.tlk:
@@ -179,6 +530,183 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(conversations_payload, indent=2, ensure_ascii=False))
         else:
             print(json.dumps(conversations_payload, ensure_ascii=False))
+
+    if args.find_reference:
+        conversations = parse_all_bioconversation_stubs(package)
+        if args.tlk:
+            tlk_path = Path(args.tlk)
+            if not tlk_path.exists() or not tlk_path.is_file():
+                parser.error(f"Base TLK does not exist: {tlk_path}")
+            dlc_dir = None
+            if args.dlc_dir:
+                dlc_path = Path(args.dlc_dir)
+                if not dlc_path.exists() or not dlc_path.is_dir():
+                    parser.error(f"DLC directory does not exist: {dlc_path}")
+                dlc_dir = dlc_path
+            try:
+                resolver = build_tlk_resolver(base_tlk_path=tlk_path, dlc_dir=dlc_dir)
+            except TlkFormatError as exc:
+                parser.exit(status=2, message=f"Error reading TLK: {exc}\n")
+            conversations = resolve_conversations_tlk(conversations, resolver)
+
+        queries = [str(item).strip() for item in args.find_reference if str(item).strip()]
+        if not queries:
+            parser.error("--find-reference requires a non-empty value")
+
+        print(f"Reference queries: {', '.join(queries)}")
+        if not args.tlk:
+            print("Note: --tlk not provided; line_text matching may be limited.")
+
+        matched_rows: list[tuple[object, dict[str, list[str]]]] = []
+        for conversation in conversations:
+            reasons_by_query: dict[str, list[str]] = {}
+            for query in queries:
+                reasons = _conversation_match_reasons(conversation, query)
+                if reasons:
+                    reasons_by_query[query] = reasons
+            if reasons_by_query:
+                matched_rows.append((conversation, reasons_by_query))
+
+        print(f"BioConversation matches: {len(matched_rows)}")
+        for conversation, reasons_by_query in matched_rows:
+            parts = []
+            for query in queries:
+                reasons = reasons_by_query.get(query)
+                if reasons:
+                    parts.append(f"{query}=>{'+'.join(reasons)}")
+            reason_text = "; ".join(parts)
+            print(
+                f"- idx={conversation.export_index} "
+                f"name={conversation.id} "
+                f"parse_mode={conversation.parse_mode} "
+                f"matches={reason_text}"
+            )
+
+    if args.find_context_profile:
+        conversations = parse_all_bioconversation_stubs(package)
+        if args.tlk:
+            tlk_path = Path(args.tlk)
+            if not tlk_path.exists() or not tlk_path.is_file():
+                parser.error(f"Base TLK does not exist: {tlk_path}")
+            dlc_dir = None
+            if args.dlc_dir:
+                dlc_path = Path(args.dlc_dir)
+                if not dlc_path.exists() or not dlc_path.is_dir():
+                    parser.error(f"DLC directory does not exist: {dlc_path}")
+                dlc_dir = dlc_path
+            try:
+                resolver = build_tlk_resolver(base_tlk_path=tlk_path, dlc_dir=dlc_dir)
+            except TlkFormatError as exc:
+                parser.exit(status=2, message=f"Error reading TLK: {exc}\n")
+            conversations = resolve_conversations_tlk(conversations, resolver)
+
+        if not args.tlk:
+            print("Note: --tlk not provided; context matching may miss text evidence.")
+
+        print(
+            f"Context profile: {args.find_context_profile} "
+            f"(min_score={args.context_min_score})"
+        )
+        matched: list[tuple[object, int, list[str], list[str]]] = []
+        for conversation in conversations:
+            if args.find_context_profile == "lia-vael":
+                score, hits, snippets = _conversation_lia_vael_context(conversation)
+            else:
+                score, hits, snippets = 0, [], []
+            if score >= args.context_min_score:
+                matched.append((conversation, score, hits, snippets))
+
+        matched.sort(key=lambda item: item[1], reverse=True)
+        print(f"Context matches: {len(matched)}")
+        for conversation, score, hits, snippets in matched:
+            snippet = snippets[0] if snippets else None
+            print(
+                f"- idx={conversation.export_index} "
+                f"name={conversation.id} "
+                f"score={score} "
+                f"hits={'+'.join(hits)} "
+                f"sample_line={snippet}"
+            )
+
+    if args.scan_tlk_reference:
+        from tlk import find_dlc_tlk_files, read_tlk, resolve_tlk_string
+
+        if not args.tlk:
+            parser.error("--scan-tlk-reference requires --tlk")
+
+        base_tlk = Path(args.tlk)
+        if not base_tlk.exists() or not base_tlk.is_file():
+            parser.error(f"Base TLK does not exist: {base_tlk}")
+
+        queries = [str(item).strip() for item in args.scan_tlk_reference if str(item).strip()]
+        if not queries:
+            parser.error("--scan-tlk-reference requires a non-empty value")
+
+        tlk_paths = [base_tlk]
+        if args.dlc_dir:
+            dlc_path = Path(args.dlc_dir)
+            if not dlc_path.exists() or not dlc_path.is_dir():
+                parser.error(f"DLC directory does not exist: {dlc_path}")
+            tlk_paths.extend(find_dlc_tlk_files(dlc_path))
+
+        print(f"TLK reference queries: {', '.join(queries)}")
+        print(f"TLK files scanned: {len(tlk_paths)}")
+
+        total_matches = 0
+        for tlk_path in tlk_paths:
+            tlk_file = read_tlk(tlk_path)
+            tlk_rows = []
+            for string_id in tlk_file.male_stringrefs:
+                value = resolve_tlk_string(tlk_file, string_id, male=True)
+                if value is None:
+                    continue
+                lower = value.casefold()
+                hit_queries = [query for query in queries if query.casefold() in lower]
+                if hit_queries:
+                    tlk_rows.append((string_id, hit_queries, value))
+            if not tlk_rows:
+                continue
+
+            total_matches += len(tlk_rows)
+            print(f"- tlk={tlk_path} matches={len(tlk_rows)}")
+            for string_id, hit_queries, value in tlk_rows:
+                print(f"  strref={string_id} queries={'+'.join(hit_queries)} text={value}")
+        print(f"TLK matches total: {total_matches}")
+
+    if args.trace_strref_usage:
+        targets = {int(item) for item in args.trace_strref_usage if int(item) >= 0}
+        if not targets:
+            parser.error("--trace-strref-usage requires at least one non-negative integer")
+
+        conversations = parse_all_bioconversation_stubs(package)
+        if args.tlk:
+            tlk_path = Path(args.tlk)
+            if not tlk_path.exists() or not tlk_path.is_file():
+                parser.error(f"Base TLK does not exist: {tlk_path}")
+            dlc_dir = None
+            if args.dlc_dir:
+                dlc_path = Path(args.dlc_dir)
+                if not dlc_path.exists() or not dlc_path.is_dir():
+                    parser.error(f"DLC directory does not exist: {dlc_path}")
+                dlc_dir = dlc_path
+            try:
+                resolver = build_tlk_resolver(base_tlk_path=tlk_path, dlc_dir=dlc_dir)
+            except TlkFormatError as exc:
+                parser.exit(status=2, message=f"Error reading TLK: {exc}\n")
+            conversations = resolve_conversations_tlk(conversations, resolver)
+
+        rows = _find_strref_usages(conversations, targets)
+        print(f"StrRef targets: {', '.join(str(item) for item in sorted(targets))}")
+        print(f"StrRef usage matches: {len(rows)}")
+        for row in rows:
+            print(
+                f"- kind={row['kind']} "
+                f"strref={row['strref']} "
+                f"idx={row['export_index']} "
+                f"name={row['conversation_id']} "
+                f"node={row['node_id']} "
+                f"text={row['line_text']}"
+            )
 
     if args.output:
         conversations, errors = parse_all_bioconversation_stubs_resilient(package)

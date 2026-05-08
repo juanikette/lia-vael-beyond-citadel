@@ -81,3 +81,25 @@ def test_phase2_cli_lists_bioconversations(tmp_path: Path) -> None:
     assert result.returncode == 0
     assert "BioConversation exports: 1" in result.stdout
     assert "name=Conv_Test" in result.stdout
+
+
+def test_phase2_cli_inspects_bioconversation_owners(tmp_path: Path) -> None:
+    pcc_path = tmp_path / "sample.pcc"
+    pcc_path.write_bytes(_build_minimal_pcc(unreal_version=684, licensee_version=168))
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "cli",
+            str(pcc_path),
+            "--inspect-bioconversation-owners",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "BioConversation owner-inspection exports: 1" in result.stdout
+    assert "name=Conv_Test" in result.stdout

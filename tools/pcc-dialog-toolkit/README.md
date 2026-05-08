@@ -33,6 +33,13 @@ MVP toolkit for extracting `BioConversation` dialogue from Mass Effect `.pcc` fi
 ```bash
 pcc_dialog_extract path/to/file.pcc --list-bioconversations
 pcc_dialog_extract path/to/file.pcc --inspect-bioconversation-properties
+pcc_dialog_extract path/to/file.pcc --inspect-bioconversation-owners
+pcc_dialog_extract path/to/file.pcc --find-reference "Lia'Vael" --tlk ".../BIOGame_INT.tlk" --dlc-dir ".../BioGame/DLC"
+pcc_dialog_extract path/to/file.pcc --find-context-profile lia-vael --context-min-score 4 --tlk ".../BIOGame_INT.tlk" --dlc-dir ".../BioGame/DLC"
+pcc_dialog_extract path/to/file.pcc --scan-tlk-reference "Lia'Vael" --tlk ".../BIOGame_INT.tlk" --dlc-dir ".../BioGame/DLC"
+pcc_dialog_extract path/to/file.pcc --trace-strref-usage 253865 --trace-strref-usage 260225 --tlk ".../BIOGame_INT.tlk" --dlc-dir ".../BioGame/DLC"
+pcc_dialog_extract --lia-vael-evidence-report reports/lia-vael-evidence.json --tlk ".../CookedPC/BIOGame_INT.tlk" --dlc-dir ".../BioGame/DLC" --pretty
+pcc_dialog_extract --evidence-report reports/custom-evidence.json --evidence-query "tali'zorah" --evidence-query "rally the crowd" --tlk ".../CookedPC/BIOGame_INT.tlk" --dlc-dir ".../BioGame/DLC" --pretty
 pcc_dialog_extract path/to/file.pcc --dump-bioconversation-stub --pretty
 pcc_dialog_extract path/to/file.pcc --dump-bioconversation-row-payloads --pretty
 pcc_dialog_extract path/to/file.pcc --validate-bioconversation-stubs --pretty
@@ -64,6 +71,14 @@ The CLI validates a minimal output contract before writing files (required top-l
 If warnings or conversation-level errors are present, it also prints them to the console for immediate traceability.
 
 `--validate-bioconversation-stubs` marks `needs_schema_review=true` when the profile is unknown or parsing suggests a schema mismatch.
+
+`--scan-tlk-reference` searches raw TLK content (base + DLC) for one or more substrings and prints matching `StrRef` IDs.
+
+`--trace-strref-usage` scans parsed BioConversation stubs and reports where target `StrRef` IDs appear (entry/reply node + conversation id).
+
+`--lia-vael-evidence-report` runs a single consolidated sweep: it finds Lia'Vael-related TLK strings first, then traces those `StrRef` IDs across all base + DLC `.pcc` conversation stubs and writes one JSON report.
+
+`--evidence-report` is the generalized variant: provide one or more `--evidence-query` values and it generates the same consolidated TLK + StrRef usage report for any narrative target.
 
 ## JSON output (summary)
 

@@ -91,6 +91,69 @@ class PccPackage:
             )
         return rows
 
+    def resolve_object_ref(self, ref: int) -> dict[str, int | str | None]:
+        if ref == 0:
+            return {"ref": ref, "kind": "none", "index": None, "name": None, "class": None}
+        if ref > 0:
+            idx = ref - 1
+            if 0 <= idx < len(self.exports):
+                exp = self.exports[idx]
+                return {
+                    "ref": ref,
+                    "kind": "export",
+                    "index": exp.index,
+                    "name": exp.object_name,
+                    "class": exp.class_name,
+                }
+            return {"ref": ref, "kind": "export", "index": idx, "name": None, "class": None}
+
+        idx = (-ref) - 1
+        if 0 <= idx < len(self.imports):
+            imp = self.imports[idx]
+            name = self.names[imp.object_name_index].text if 0 <= imp.object_name_index < len(self.names) else None
+            class_name = self.names[imp.class_name_index].text if 0 <= imp.class_name_index < len(self.names) else None
+            return {
+                "ref": ref,
+                "kind": "import",
+                "index": imp.index,
+                "name": name,
+                "class": class_name,
+            }
+        return {"ref": ref, "kind": "import", "index": idx, "name": None, "class": None}
+
+    def inspect_bioconversation_owners(self) -> list[dict[str, object]]:
+        from .properties import extract_bioconversation_property_tags
+        from .reader import _read_i32
+
+        rows: list[dict[str, object]] = []
+        for item in self.iter_exports(class_name="BioConversation"):
+            tags = extract_bioconversation_property_tags(self.raw_data, self.names, item)
+            owner_tag = next(
+                (
+                    tag
+                    for tag in tags
+                    if tag.prop_type == "ObjectProperty" and "owner" in tag.name.lower()
+                ),
+                None,
+            )
+
+            owner_ref: int | None = None
+            owner_resolved: dict[str, int | str | None] | None = None
+            if owner_tag is not None and owner_tag.size >= 4:
+                owner_ref = _read_i32(self.raw_data, owner_tag.value_offset)
+                owner_resolved = self.resolve_object_ref(owner_ref)
+
+            rows.append(
+                {
+                    "name": item.object_name,
+                    "index": item.index,
+                    "owner_property": owner_tag.name if owner_tag else None,
+                    "owner_ref": owner_ref,
+                    "owner": owner_resolved,
+                }
+            )
+        return rows
+
     def inspect_bioconversation_properties(self) -> list[dict[str, object]]:
         from .properties import extract_bioconversation_key_properties, read_array_property_count
 
