@@ -46,3 +46,15 @@ Al cerrar cada fase, agregar aqui:
 - Archivo/clase LEX consultada: `LegendaryExplorerCore/TLK/ME2ME3/ME2ME3TLKBase.cs`, `LegendaryExplorerCore/TLK/ME2ME3/ME2ME3TalkFile.cs`, `LegendaryExplorerCore/TLK/ME2ME3/ME2ME3LazyTLK.cs`, `LegendaryExplorerCore/TLK/TLKBitArray.cs`, `LegendaryExplorerCore/TLK/ME2TalkFiles.cs`.
 - Decision toolkit: implementar lector TLK ME2/ME3 compatible con header + tabla `StringID/BitOffset` + arbol Huffman, y resolver `StrRef` sobre AST con prioridad DLC por `MountPriority` y fallback a TLK base.
 - Diferencia OT vs LE detectada: para flujo de lookup, el orden de precedencia por lista cargada y formato TLK compartido en ME2/LE2 permite una ruta comun inicial; quedan pendientes casos LE1/ME1 (formato distinto) y validacion ampliada en muestras reales.
+
+## Fase 5
+
+- Archivo/clase LEX consultada: `LegendaryExplorerCore/Packages/MEPackage.cs` (revision de estructura de export + convenciones de salida para trazabilidad).
+- Decision toolkit: introducir salida JSON versionada (`schema_version`) con `summary` agregado y errores por conversacion sin abortar el archivo completo.
+- Diferencia OT vs LE detectada: no se detectaron cambios de formato adicionales en esta fase (foco en serializer/CLI y resiliencia de pipeline).
+
+## Fase 6 (QA en curso)
+
+- Archivo/clase LEX consultada: `LegendaryExplorerCore/Packages/MEPackage.cs`, `LegendaryExplorerCore/TLK/ME2ME3/ME2ME3TalkFile.cs`, `LegendaryExplorerCore/TLK/ME2TalkFiles.cs`.
+- Decision toolkit: validar por muestra `StrRef`, texto resuelto y enlaces de nodos contra baseline LEX, manteniendo evidencia por perfil (`OT`/`LE2`).
+- Diferencia OT vs LE detectada: OT validado en curso; validacion LE2 queda pendiente de completar con corpus local disponible.

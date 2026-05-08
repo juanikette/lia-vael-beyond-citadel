@@ -6,7 +6,8 @@ MVP para extraer conversaciones `BioConversation` desde archivos `.pcc` (Mass Ef
 
 - Fase 3 cerrada: parse semantico de `BioConversation` validado en corpus ME2 OT LOC.
 - Fase 4 cerrada: resolucion `StrRef` desde TLK base con soporte de overrides DLC.
-- Fase 5 en progreso: serializer JSON versionado + flujo CLI robusto con manejo de errores por conversacion.
+- Fase 5 cerrada: serializer JSON versionado + flujo CLI robusto con manejo de errores por conversacion.
+- Fase 6 en progreso: QA MVP con muestras OT/LE y validacion puntual contra LEX.
 - Soporte ME2 OT comprimido (LZO) requiere `lzallright`.
 
 ## Uso (actual)
@@ -47,3 +48,5 @@ Flujo sugerido de cierre Fase 3 con muestras reales:
 4. Para varias muestras, usar `--phase3-batch-report` y revisar el `summary` agregado.
 
 Guia operativa detallada: `docs/phase3-closure-playbook.md`.
+
+Guia operativa Fase 6: `docs/phase6-qa-runbook.md`.
