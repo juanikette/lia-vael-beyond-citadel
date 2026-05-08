@@ -11,27 +11,44 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 type result struct {
-	Path string
-	Hits []int
-	Err  string
+	Path      string
+	Size      int64
+	ModTimeNs int64
+	Hits      []int
+	Err       string
+}
+
+type fileEntry struct {
+	Path      string `json:"path"`
+	Size      int64  `json:"size"`
+	ModTimeNs int64  `json:"mod_time_ns"`
+	Hits      []int  `json:"hits"`
+	Error     string `json:"error,omitempty"`
 }
 
 type report struct {
-	Version      string              `json:"version"`
-	RootBioGame  string              `json:"root_biogame"`
-	TargetStrRef []int               `json:"target_strrefs"`
-	FilesScanned int                 `json:"files_scanned"`
-	Candidates   []string            `json:"candidates"`
-	HitsByFile   map[string][]int    `json:"hits_by_file"`
-	Errors       []map[string]string `json:"errors"`
+	Version           string              `json:"version"`
+	RootBioGame       string              `json:"root_biogame"`
+	TargetStrRef      []int               `json:"target_strrefs"`
+	FilesScanned      int                 `json:"files_scanned"`
+	FilesReused       int                 `json:"files_reused"`
+	FilesRescanned    int                 `json:"files_rescanned"`
+	Candidates        []string            `json:"candidates"`
+	HitsByFile        map[string][]int    `json:"hits_by_file"`
+	Errors            []map[string]string `json:"errors"`
+	GeneratedAt       string              `json:"generated_at"`
+	Entries           []fileEntry         `json:"entries,omitempty"`
+	IncrementalSource string              `json:"incremental_source,omitempty"`
 }
 
 func main() {
 	root := flag.String("root-biogame", "", "Path to BioGame root")
 	out := flag.String("out", "candidate-index.json", "Output JSON path")
+	index := flag.String("index", "", "Existing index JSON path for incremental refresh")
 	workers := flag.Int("workers", runtime.NumCPU(), "Worker count")
 	strrefArgs := multiFlag{}
 	flag.Var(&strrefArgs, "strref", "Target StrRef (repeatable)")
@@ -53,28 +70,60 @@ func main() {
 	}
 
 	files := collectPccFiles(*root)
-	results := scan(files, strrefs, *workers)
+	previous := map[string]fileEntry{}
+	incrementalSource := ""
+	if *index != "" {
+		loaded, loadErr := loadIndex(*index)
+		if loadErr == nil {
+			for _, item := range loaded.Entries {
+				previous[item.Path] = item
+			}
+			incrementalSource = *index
+		}
+	}
+
+	toScan, reused := splitChangedFiles(files, previous)
+	results := scan(toScan, strrefs, *workers)
 
 	rep := report{
-		Version:      "1",
-		RootBioGame:  *root,
-		TargetStrRef: strrefs,
-		FilesScanned: len(files),
-		Candidates:   []string{},
-		HitsByFile:   map[string][]int{},
-		Errors:       []map[string]string{},
+		Version:           "2",
+		RootBioGame:       *root,
+		TargetStrRef:      strrefs,
+		FilesScanned:      len(files),
+		FilesReused:       len(reused),
+		FilesRescanned:    len(toScan),
+		Candidates:        []string{},
+		HitsByFile:        map[string][]int{},
+		Errors:            []map[string]string{},
+		GeneratedAt:       time.Now().UTC().Format(time.RFC3339),
+		Entries:           []fileEntry{},
+		IncrementalSource: incrementalSource,
+	}
+
+	state := map[string]fileEntry{}
+	for _, item := range reused {
+		state[item.Path] = item
 	}
 
 	for _, r := range results {
+		entry := fileEntry{Path: r.Path, Size: r.Size, ModTimeNs: r.ModTimeNs, Hits: r.Hits, Error: r.Err}
+		state[r.Path] = entry
 		if r.Err != "" {
 			rep.Errors = append(rep.Errors, map[string]string{"file": r.Path, "error": r.Err})
+		}
+	}
+
+	for _, path := range sortedPaths(state) {
+		item := state[path]
+		rep.Entries = append(rep.Entries, item)
+		if item.Error != "" {
 			continue
 		}
-		if len(r.Hits) == 0 {
+		if len(item.Hits) == 0 {
 			continue
 		}
-		rep.Candidates = append(rep.Candidates, r.Path)
-		rep.HitsByFile[r.Path] = r.Hits
+		rep.Candidates = append(rep.Candidates, item.Path)
+		rep.HitsByFile[item.Path] = item.Hits
 	}
 
 	sort.Strings(rep.Candidates)
@@ -89,7 +138,14 @@ func main() {
 	}
 
 	fmt.Printf("candidate index written: %s\n", *out)
-	fmt.Printf("files_scanned=%d candidates=%d errors=%d\n", rep.FilesScanned, len(rep.Candidates), len(rep.Errors))
+	fmt.Printf(
+		"files_scanned=%d reused=%d rescanned=%d candidates=%d errors=%d\n",
+		rep.FilesScanned,
+		rep.FilesReused,
+		rep.FilesRescanned,
+		len(rep.Candidates),
+		len(rep.Errors),
+	)
 }
 
 type multiFlag []string
@@ -139,6 +195,50 @@ func collectPccFiles(root string) []string {
 	return files
 }
 
+func loadIndex(path string) (*report, error) {
+	blob, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var rep report
+	if err := json.Unmarshal(blob, &rep); err != nil {
+		return nil, err
+	}
+	return &rep, nil
+}
+
+func splitChangedFiles(files []string, previous map[string]fileEntry) ([]string, []fileEntry) {
+	toScan := []string{}
+	reused := []fileEntry{}
+	for _, path := range files {
+		info, err := os.Stat(path)
+		if err != nil {
+			toScan = append(toScan, path)
+			continue
+		}
+		prev, ok := previous[path]
+		if !ok {
+			toScan = append(toScan, path)
+			continue
+		}
+		if prev.Size != info.Size() || prev.ModTimeNs != info.ModTime().UnixNano() {
+			toScan = append(toScan, path)
+			continue
+		}
+		reused = append(reused, prev)
+	}
+	return toScan, reused
+}
+
+func sortedPaths(state map[string]fileEntry) []string {
+	keys := make([]string, 0, len(state))
+	for k := range state {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
 func scan(files []string, strrefs []int, workers int) []result {
 	if workers < 1 {
 		workers = 1
@@ -158,9 +258,14 @@ func scan(files []string, strrefs []int, workers int) []result {
 		go func() {
 			defer wg.Done()
 			for path := range jobs {
+				info, statErr := os.Stat(path)
+				if statErr != nil {
+					out <- result{Path: path, Err: statErr.Error()}
+					continue
+				}
 				blob, err := os.ReadFile(path)
 				if err != nil {
-					out <- result{Path: path, Err: err.Error()}
+					out <- result{Path: path, Size: info.Size(), ModTimeNs: info.ModTime().UnixNano(), Err: err.Error()}
 					continue
 				}
 				hits := []int{}
@@ -169,7 +274,7 @@ func scan(files []string, strrefs []int, workers int) []result {
 						hits = append(hits, s)
 					}
 				}
-				out <- result{Path: path, Hits: hits}
+				out <- result{Path: path, Size: info.Size(), ModTimeNs: info.ModTime().UnixNano(), Hits: hits}
 			}
 		}()
 	}

@@ -91,9 +91,30 @@ Optional hybrid mode (Go scanner):
 
 ```bash
 go run ./cmd/pcc-scan --root-biogame ".../BioGame" --strref 282425 --strref 302426 --out reports/candidates.json
+go run ./cmd/pcc-scan --root-biogame ".../BioGame" --index reports/candidates.json --strref 282425 --strref 302426 --out reports/candidates.json
 ```
 
 Then pass that index to Python evidence extraction with `--candidate-index`.
+
+The `--index` flag enables incremental refresh: unchanged files are reused from existing index entries, and only changed/new files are rescanned.
+
+When `--candidate-index` is omitted, the CLI attempts to auto-run the Go scanner first (`go run ./cmd/pcc-scan`) and falls back to the Python prefilter path if Go is unavailable.
+
+Evidence report summaries include `timing_ms` for `tlk_scan`, `candidate_selection`, `candidate_parse`, and `total`.
+
+## Verification snapshot
+
+- Full Python test suite:
+  - `python -m pytest`
+  - Expected: all tests pass.
+- Go scanner build/check:
+  - `go test ./...`
+  - Expected: scanner package resolves and reports no failing tests.
+- Hybrid evidence smoke examples (auto Go index path):
+  - `python -m cli --evidence-report <out1.json> --evidence-query "dalliance attractive as stress release" --evidence-query "self-sterilize" --evidence-query "oral contact with tissue dangerous" --tlk <BIOGame_INT.tlk> --dlc-dir <BioGame/DLC> --pretty`
+  - `python -m cli --evidence-report <out2.json> --evidence-query "miss vas normandy" --tlk <BIOGame_INT.tlk> --dlc-dir <BioGame/DLC> --pretty`
+  - `python -m cli --evidence-report <out3.json> --evidence-query "rally the crowd" --tlk <BIOGame_INT.tlk> --dlc-dir <BioGame/DLC> --pretty`
+  - Expected summary fields include `candidate_source="go_auto_index"` and `timing_ms`.
 
 ## JSON output (summary)
 

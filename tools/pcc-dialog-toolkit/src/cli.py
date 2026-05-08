@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
+import tempfile
+import time
 from pathlib import Path
 
 from dialogue import (
@@ -160,6 +163,46 @@ def _load_candidate_index(path: Path) -> list[Path]:
     return rows
 
 
+def _try_build_candidate_index_with_go(*, biogame_root: Path, target_strrefs: set[int]) -> tuple[Path | None, str | None]:
+    if not target_strrefs:
+        return None, None
+
+    project_root = Path(__file__).resolve().parents[1]
+    out_path = Path(tempfile.gettempdir()) / f"pcc_candidates_{int(time.time() * 1000)}.json"
+    cmd = [
+        "go",
+        "run",
+        "./cmd/pcc-scan",
+        "--root-biogame",
+        str(biogame_root),
+        "--out",
+        str(out_path),
+    ]
+    for value in sorted(target_strrefs):
+        cmd.extend(["--strref", str(value)])
+
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=900,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return None, f"go_auto_index_error:{exc}"
+
+    if proc.returncode != 0:
+        stderr = (proc.stderr or "").strip()
+        stdout = (proc.stdout or "").strip()
+        detail = stderr if stderr else stdout
+        return None, f"go_auto_index_failed:exit={proc.returncode}:{detail}"
+    if not out_path.exists() or not out_path.is_file():
+        return None, "go_auto_index_failed:missing_output"
+    return out_path, None
+
+
 def _build_evidence_report(
     *,
     base_tlk: Path,
@@ -167,10 +210,12 @@ def _build_evidence_report(
     queries: list[str],
     candidate_index_path: Path | None = None,
 ) -> dict[str, object]:
+    started_at = time.perf_counter()
     normalized_queries = [item.strip().casefold() for item in queries if item.strip()]
     if not normalized_queries:
         raise ValueError("At least one non-empty query is required")
 
+    tlk_scan_started = time.perf_counter()
     tlk_paths = [base_tlk] + find_dlc_tlk_files(dlc_dir)
     tlk_hits: list[dict[str, object]] = []
     target_strrefs: set[int] = set()
@@ -193,6 +238,7 @@ def _build_evidence_report(
                     "text": value,
                 }
             )
+    tlk_scan_elapsed_ms = int((time.perf_counter() - tlk_scan_started) * 1000)
 
     biogame_root = _infer_biogame_root_from_tlk(base_tlk)
     if biogame_root is None:
@@ -201,12 +247,44 @@ def _build_evidence_report(
     pcc_files = sorted((biogame_root / "CookedPC").glob("*.pcc")) + sorted(dlc_dir.rglob("*.pcc"))
     candidate_pcc_files: list[Path] = []
     pcc_errors: list[dict[str, str]] = []
+    candidate_stage_started = time.perf_counter()
+    candidate_source = "python_prefilter"
     if candidate_index_path is not None:
         indexed = _load_candidate_index(candidate_index_path)
         for item in indexed:
             if item.exists() and item.is_file() and item.suffix.casefold() == ".pcc":
                 candidate_pcc_files.append(item)
+        candidate_source = "index"
     else:
+        auto_index_path, auto_index_error = _try_build_candidate_index_with_go(
+            biogame_root=biogame_root,
+            target_strrefs=target_strrefs,
+        )
+        if auto_index_path is not None:
+            try:
+                indexed = _load_candidate_index(auto_index_path)
+                for item in indexed:
+                    if item.exists() and item.is_file() and item.suffix.casefold() == ".pcc":
+                        candidate_pcc_files.append(item)
+                candidate_source = "go_auto_index"
+            except (OSError, ValueError, json.JSONDecodeError) as exc:
+                pcc_errors.append(
+                    {
+                        "file": str(auto_index_path),
+                        "stage": "go_auto_index_load",
+                        "error": str(exc),
+                    }
+                )
+        elif auto_index_error is not None:
+            pcc_errors.append(
+                {
+                    "file": str(biogame_root),
+                    "stage": "go_auto_index",
+                    "error": auto_index_error,
+                }
+            )
+
+    if not candidate_pcc_files and candidate_source == "python_prefilter":
         target_signatures = {
             strref: strref.to_bytes(4, byteorder="little", signed=True)
             for strref in sorted(target_strrefs)
@@ -221,11 +299,13 @@ def _build_evidence_report(
                 continue
             if any(signature in blob for signature in target_signatures.values()):
                 candidate_pcc_files.append(pcc_path)
+    candidate_stage_elapsed_ms = int((time.perf_counter() - candidate_stage_started) * 1000)
 
     usages: list[dict[str, object]] = []
     raw_export_hits: list[dict[str, object]] = []
     conversations_total = 0
 
+    parse_stage_started = time.perf_counter()
     for pcc_path in candidate_pcc_files:
         try:
             package = read_pcc(pcc_path)
@@ -255,6 +335,8 @@ def _build_evidence_report(
         for row in rows:
             row["file"] = str(pcc_path)
             usages.append(row)
+    parse_stage_elapsed_ms = int((time.perf_counter() - parse_stage_started) * 1000)
+    total_elapsed_ms = int((time.perf_counter() - started_at) * 1000)
 
     return {
         "report": "dialogue-evidence",
@@ -265,11 +347,17 @@ def _build_evidence_report(
             "target_strrefs": len(target_strrefs),
             "pcc_files_scanned": len(pcc_files),
             "candidate_pcc_files": len(candidate_pcc_files),
-            "candidate_source": "index" if candidate_index_path is not None else "python_prefilter",
+            "candidate_source": candidate_source,
             "conversations_total": conversations_total,
             "strref_usages": len(usages),
             "raw_export_hits": len(raw_export_hits),
             "pcc_errors": len(pcc_errors),
+            "timing_ms": {
+                "tlk_scan": tlk_scan_elapsed_ms,
+                "candidate_selection": candidate_stage_elapsed_ms,
+                "candidate_parse": parse_stage_elapsed_ms,
+                "total": total_elapsed_ms,
+            },
         },
         "tlk_hits": tlk_hits,
         "strref_usages": usages,

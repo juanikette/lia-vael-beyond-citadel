@@ -188,3 +188,6 @@ tools/pcc-dialog-toolkit/output/
 # Local CLI workspace directories
 .gemini/
 .GEMINI/
+
+# Local Go scanner build artifact
+tools/pcc-dialog-toolkit/pcc-scan.exe
