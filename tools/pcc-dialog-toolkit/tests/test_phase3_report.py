@@ -5,7 +5,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-from pcc_dialog_toolkit.validation import build_phase3_report, write_phase3_report
+from pcc_dialog_toolkit.validation import (
+    build_phase3_batch_report,
+    build_phase3_report,
+    write_phase3_report,
+)
 from tests.test_phase3_ast_stub import _build_pcc_with_bioconv_row_payloads
 
 
@@ -18,6 +22,7 @@ def test_phase3_build_report_structure(tmp_path: Path) -> None:
     assert "summary" in report
     assert "validation_items" in report
     assert "row_payloads" in report
+    assert report["parse_error"] is None
 
 
 def test_phase3_write_report_file(tmp_path: Path) -> None:
@@ -55,3 +60,23 @@ def test_phase3_cli_writes_report_file(tmp_path: Path) -> None:
     assert out.exists()
     payload = json.loads(out.read_text(encoding="utf-8"))
     assert payload["summary"]["total"] == 1
+
+
+def test_phase3_build_report_handles_parse_error(tmp_path: Path) -> None:
+    bad = tmp_path / "bad.pcc"
+    bad.write_bytes(b"BAD!" + b"\x00" * 16)
+
+    report = build_phase3_report(bad)
+    assert report["parse_error"] is not None
+    assert report["summary"]["needs_schema_review"] == 1
+
+
+def test_phase3_batch_summary_counts_parse_errors(tmp_path: Path) -> None:
+    ok = tmp_path / "ok.pcc"
+    bad = tmp_path / "bad.pcc"
+    ok.write_bytes(_build_pcc_with_bioconv_row_payloads())
+    bad.write_bytes(b"BAD!" + b"\x00" * 16)
+
+    batch = build_phase3_batch_report([ok, bad])
+    assert batch["summary"]["files"] == 2
+    assert batch["summary"]["parse_errors"] == 1

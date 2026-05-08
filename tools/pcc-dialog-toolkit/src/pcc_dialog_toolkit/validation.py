@@ -3,11 +3,28 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from pcc_dialog_toolkit.pcc import read_pcc
+from pcc_dialog_toolkit.pcc import PccFormatError, read_pcc
 
 
 def build_phase3_report(pcc_path: str | Path) -> dict[str, object]:
-    package = read_pcc(pcc_path)
+    try:
+        package = read_pcc(pcc_path)
+    except (PccFormatError, OSError) as exc:
+        return {
+            "pcc_path": str(pcc_path),
+            "game_profile": "unknown",
+            "parse_error": str(exc),
+            "summary": {
+                "total": 0,
+                "valid": 0,
+                "invalid": 0,
+                "needs_schema_review": 1,
+                "by_parse_mode": {},
+            },
+            "validation_items": [],
+            "row_payloads": [],
+        }
+
     validation_items = package.validate_bioconversation_stubs()
     summary = package.summarize_bioconversation_validation()
     row_payloads = package.inspect_bioconversation_row_payloads()
@@ -15,6 +32,7 @@ def build_phase3_report(pcc_path: str | Path) -> dict[str, object]:
     return {
         "pcc_path": str(pcc_path),
         "game_profile": package.infer_game_profile(),
+        "parse_error": None,
         "summary": summary,
         "validation_items": validation_items,
         "row_payloads": row_payloads,
@@ -38,6 +56,7 @@ def build_phase3_batch_report(pcc_paths: list[str | Path]) -> dict[str, object]:
         "valid": 0,
         "invalid": 0,
         "needs_schema_review": 0,
+        "parse_errors": 0,
     }
 
     for pcc_path in pcc_paths:
@@ -48,6 +67,8 @@ def build_phase3_batch_report(pcc_paths: list[str | Path]) -> dict[str, object]:
         totals["valid"] += int(summary.get("valid", 0))
         totals["invalid"] += int(summary.get("invalid", 0))
         totals["needs_schema_review"] += int(summary.get("needs_schema_review", 0))
+        if report.get("parse_error"):
+            totals["parse_errors"] += 1
         items.append(report)
 
     return {

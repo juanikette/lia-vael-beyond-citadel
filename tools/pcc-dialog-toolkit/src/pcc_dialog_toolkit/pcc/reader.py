@@ -60,12 +60,34 @@ def _parse_header(data: bytes) -> PccHeader:
     unreal_version = version_pack & 0xFFFF
     licensee_version = (version_pack >> 16) & 0xFFFF
 
-    name_count = _read_i32(data, 20)
-    name_offset = _read_i32(data, 24)
-    export_count = _read_i32(data, 28)
-    export_offset = _read_i32(data, 32)
-    import_count = _read_i32(data, 36)
-    import_offset = _read_i32(data, 40)
+    cursor = 8
+    _full_header_size = _read_i32(data, cursor)
+    cursor += 4
+
+    folder_len = _read_i32(data, cursor)
+    cursor += 4
+    if folder_len > 0:
+        cursor += folder_len
+    elif folder_len < 0:
+        cursor += (-folder_len) * 2
+
+    if cursor < 0 or cursor + 4 > len(data):
+        raise PccFormatError("Header truncado en package folder")
+
+    _flags = _read_u32(data, cursor)
+    cursor += 4
+
+    name_count = _read_i32(data, cursor)
+    cursor += 4
+    name_offset = _read_i32(data, cursor)
+    cursor += 4
+    export_count = _read_i32(data, cursor)
+    cursor += 4
+    export_offset = _read_i32(data, cursor)
+    cursor += 4
+    import_count = _read_i32(data, cursor)
+    cursor += 4
+    import_offset = _read_i32(data, cursor)
 
     if min(name_count, export_count, import_count) < 0:
         raise PccFormatError("Conteos negativos en tablas")
