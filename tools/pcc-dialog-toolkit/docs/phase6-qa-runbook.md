@@ -35,7 +35,7 @@ Usar al menos 3 PCC por perfil. Si hay disponibilidad, preferir 5 para mayor cob
 ## Comando base por muestra
 
 ```bash
-python -m pcc_dialog_toolkit <ruta_pcc> --game <me2|le2> --tlk "<ruta_BIOGame_INT.tlk>" --dlc-dir "<ruta_DLC>" --output "<salida_json>" --pretty
+pcc_dialog_extract <ruta_pcc> --game <me2|le2> --tlk "<ruta_BIOGame_INT.tlk>" --dlc-dir "<ruta_DLC>" --output "<salida_json>" --pretty
 ```
 
 ## Evidencia minima por muestra

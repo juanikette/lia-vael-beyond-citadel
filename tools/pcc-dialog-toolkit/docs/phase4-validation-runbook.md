@@ -3,7 +3,7 @@
 Comando reproducible para validar resolucion de `StrRef` con TLK base y DLC:
 
 ```bash
-python -c "from pathlib import Path; import json; from pcc_dialog_toolkit.pcc import read_pcc; from pcc_dialog_toolkit.dialogue import parse_all_bioconversation_stubs; from pcc_dialog_toolkit.tlk import build_tlk_resolver, resolve_conversations_tlk; game=Path(r'C:\\Program Files\\EA Games\\Mass Effect 2'); cooked=game/'BioGame'/'CookedPC'; tlk= cooked/'BIOGame_INT.tlk'; dlc=game/'BioGame'/'DLC'; pccs=sorted(cooked.glob('BioD_*LOC_INT.pcc')); base=build_tlk_resolver(base_tlk_path=tlk, dlc_dir=None); with_dlc=build_tlk_resolver(base_tlk_path=tlk, dlc_dir=dlc); files=0; conv=0; entry_refs=0; entry_res_base=0; entry_res_dlc=0; reply_refs=0; reply_res_base=0; reply_res_dlc=0; diff=0; parse_errors=[]; \
+PYTHONPATH=src python -c "from pathlib import Path; import json; from pcc import read_pcc; from dialogue import parse_all_bioconversation_stubs; from tlk import build_tlk_resolver, resolve_conversations_tlk; game=Path(r'C:\\Program Files\\EA Games\\Mass Effect 2'); cooked=game/'BioGame'/'CookedPC'; tlk= cooked/'BIOGame_INT.tlk'; dlc=game/'BioGame'/'DLC'; pccs=sorted(cooked.glob('BioD_*LOC_INT.pcc')); base=build_tlk_resolver(base_tlk_path=tlk, dlc_dir=None); with_dlc=build_tlk_resolver(base_tlk_path=tlk, dlc_dir=dlc); files=0; conv=0; entry_refs=0; entry_res_base=0; entry_res_dlc=0; reply_refs=0; reply_res_base=0; reply_res_dlc=0; diff=0; parse_errors=[]; \
 for p in pccs:\
   try:\
     pkg=read_pcc(p); stubs=parse_all_bioconversation_stubs(pkg); rb=resolve_conversations_tlk(stubs, base); rd=resolve_conversations_tlk(stubs, with_dlc); files+=1; conv+=len(stubs)\
