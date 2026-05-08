@@ -4,8 +4,12 @@ import argparse
 import json
 from pathlib import Path
 
-from pcc_dialog_toolkit.dialogue import parse_all_bioconversation_stubs
+from pcc_dialog_toolkit.dialogue import (
+    parse_all_bioconversation_stubs,
+    parse_all_bioconversation_stubs_resilient,
+)
 from pcc_dialog_toolkit.pcc import PccFormatError, read_pcc
+from pcc_dialog_toolkit.serialize import build_output_payload, validate_output_payload, write_output_json
 from pcc_dialog_toolkit.tlk import TlkFormatError, build_tlk_resolver, resolve_conversations_tlk
 from pcc_dialog_toolkit.validation import write_phase3_batch_report, write_phase3_report
 
@@ -175,6 +179,53 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(conversations_payload, indent=2, ensure_ascii=False))
         else:
             print(json.dumps(conversations_payload, ensure_ascii=False))
+
+    if args.output:
+        conversations, errors = parse_all_bioconversation_stubs_resilient(package)
+        if args.tlk:
+            tlk_path = Path(args.tlk)
+            if not tlk_path.exists() or not tlk_path.is_file():
+                parser.error(f"No existe TLK base: {tlk_path}")
+            dlc_dir = None
+            if args.dlc_dir:
+                dlc_path = Path(args.dlc_dir)
+                if not dlc_path.exists() or not dlc_path.is_dir():
+                    parser.error(f"No existe directorio DLC: {dlc_path}")
+                dlc_dir = dlc_path
+            try:
+                resolver = build_tlk_resolver(base_tlk_path=tlk_path, dlc_dir=dlc_dir)
+            except TlkFormatError as exc:
+                parser.exit(status=2, message=f"Error leyendo TLK: {exc}\n")
+            conversations = resolve_conversations_tlk(conversations, resolver)
+
+        payload = build_output_payload(
+            input_pcc=str(input_path),
+            game=args.game,
+            conversations=conversations,
+            errors=errors,
+        )
+        validate_output_payload(payload)
+        output_path = write_output_json(output_path=args.output, payload=payload, pretty=args.pretty)
+        print(f"Output JSON escrito: {output_path}")
+
+        warning_total = int(payload["summary"]["warnings_total"])
+        if warning_total > 0:
+            print(f"Warnings detectados: {warning_total}")
+            for conversation in conversations:
+                if conversation.warnings:
+                    print(
+                        f"- warning id={conversation.id} "
+                        f"export_index={conversation.export_index} "
+                        f"warnings={';'.join(conversation.warnings)}"
+                    )
+        if errors:
+            print(f"Conversaciones con error: {len(errors)}")
+            for item in errors:
+                print(
+                    f"- error id={item.get('id')} "
+                    f"export_index={item.get('export_index')} "
+                    f"detail={item.get('error')}"
+                )
 
     if args.dump_bioconversation_row_payloads:
         payloads = package.inspect_bioconversation_row_payloads()

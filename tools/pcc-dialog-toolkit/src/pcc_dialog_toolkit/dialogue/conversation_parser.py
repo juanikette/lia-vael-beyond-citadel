@@ -431,6 +431,27 @@ def parse_all_bioconversation_stubs(package: PccPackage) -> list[Conversation]:
     return rows
 
 
+def parse_all_bioconversation_stubs_resilient(
+    package: PccPackage,
+) -> tuple[list[Conversation], list[dict[str, object]]]:
+    rows: list[Conversation] = []
+    errors: list[dict[str, object]] = []
+    for export in package.iter_exports(class_name="BioConversation"):
+        if not _has_bioconversation_serial_data(export):
+            continue
+        try:
+            rows.append(parse_bioconversation_stub(package, export))
+        except Exception as exc:
+            errors.append(
+                {
+                    "id": export.object_name or f"Export_{export.index}",
+                    "export_index": export.index,
+                    "error": f"{exc.__class__.__name__}: {exc}",
+                }
+            )
+    return rows, errors
+
+
 def validate_bioconversation_stub(stub: Conversation) -> list[str]:
     issues: list[str] = []
 
