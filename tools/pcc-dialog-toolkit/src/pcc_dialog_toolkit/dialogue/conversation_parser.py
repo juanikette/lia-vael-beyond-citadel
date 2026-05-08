@@ -302,6 +302,26 @@ def validate_all_bioconversation_stubs(package: PccPackage) -> list[dict[str, ob
     return reports
 
 
+def summarize_stub_validation(reports: list[dict[str, object]]) -> dict[str, object]:
+    total = len(reports)
+    valid = sum(1 for row in reports if bool(row.get("is_valid")))
+    needs_review = sum(1 for row in reports if bool(row.get("needs_schema_review")))
+    invalid = total - valid
+
+    by_parse_mode: dict[str, int] = {}
+    for row in reports:
+        mode = str(row.get("parse_mode", "unknown"))
+        by_parse_mode[mode] = by_parse_mode.get(mode, 0) + 1
+
+    return {
+        "total": total,
+        "valid": valid,
+        "invalid": invalid,
+        "needs_schema_review": needs_review,
+        "by_parse_mode": by_parse_mode,
+    }
+
+
 def inspect_bioconversation_row_payloads(package: PccPackage) -> list[dict[str, object]]:
     report: list[dict[str, object]] = []
     for export in package.iter_exports(class_name="BioConversation"):

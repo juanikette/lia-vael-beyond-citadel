@@ -46,6 +46,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Valida consistencia interna de AST stubs por conversacion",
     )
+    parser.add_argument(
+        "--strict-validation",
+        action="store_true",
+        help="Devuelve exit code 3 si hay conversacion invalida o needs_schema_review",
+    )
     parser.add_argument("--version", action="store_true", help="Muestra la version actual")
     return parser
 
@@ -126,8 +131,17 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.validate_bioconversation_stubs:
         report = package.validate_bioconversation_stubs()
+        summary = package.summarize_bioconversation_validation()
         if args.pretty:
-            print(json.dumps(report, indent=2, ensure_ascii=False))
+            print(json.dumps({"summary": summary, "items": report}, indent=2, ensure_ascii=False))
         else:
-            print(json.dumps(report, ensure_ascii=False))
+            print(json.dumps({"summary": summary, "items": report}, ensure_ascii=False))
+
+        if args.strict_validation and (
+            int(summary.get("invalid", 0)) > 0 or int(summary.get("needs_schema_review", 0)) > 0
+        ):
+            return 3
+
+    if args.strict_validation and not args.validate_bioconversation_stubs:
+        parser.error("--strict-validation requiere --validate-bioconversation-stubs")
     return 0

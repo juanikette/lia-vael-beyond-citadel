@@ -482,9 +482,57 @@ def test_phase3_cli_validate_stub_json(tmp_path: Path) -> None:
 
     assert result.returncode == 0
     payload = result.stdout.splitlines()[-1]
-    rows = json.loads(payload)
-    assert len(rows) == 1
-    assert rows[0]["is_valid"] is True
+    obj = json.loads(payload)
+    assert obj["summary"]["total"] == 1
+    assert obj["summary"]["valid"] == 1
+    assert obj["summary"]["needs_schema_review"] == 0
+    assert len(obj["items"]) == 1
+    assert obj["items"][0]["is_valid"] is True
+
+
+def test_phase3_cli_validate_stub_strict_exit_code(tmp_path: Path) -> None:
+    pcc_path = tmp_path / "sample_validate_cli_strict_bad.pcc"
+    payload = bytearray(_build_pcc_with_bioconv_row_payloads())
+    packed = ((1 & 0xFFFF) << 16) | (999 & 0xFFFF)
+    payload[4:8] = struct.pack("<I", packed)
+    pcc_path.write_bytes(bytes(payload))
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pcc_dialog_toolkit",
+            str(pcc_path),
+            "--validate-bioconversation-stubs",
+            "--strict-validation",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 3
+
+
+def test_phase3_cli_strict_requires_validate_flag(tmp_path: Path) -> None:
+    pcc_path = tmp_path / "sample_validate_cli_strict_require.pcc"
+    pcc_path.write_bytes(_build_pcc_with_bioconv_row_payloads())
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pcc_dialog_toolkit",
+            str(pcc_path),
+            "--strict-validation",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "--strict-validation requiere --validate-bioconversation-stubs" in result.stderr
 
 
 def test_phase3_struct_head_mode_mapping(tmp_path: Path) -> None:
