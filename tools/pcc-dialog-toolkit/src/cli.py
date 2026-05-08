@@ -4,14 +4,14 @@ import argparse
 import json
 from pathlib import Path
 
-from pcc_dialog_toolkit.dialogue import (
+from dialogue import (
     parse_all_bioconversation_stubs,
     parse_all_bioconversation_stubs_resilient,
 )
-from pcc_dialog_toolkit.pcc import PccFormatError, read_pcc
-from pcc_dialog_toolkit.serialize import build_output_payload, validate_output_payload, write_output_json
-from pcc_dialog_toolkit.tlk import TlkFormatError, build_tlk_resolver, resolve_conversations_tlk
-from pcc_dialog_toolkit.validation import write_phase3_batch_report, write_phase3_report
+from pcc import PccFormatError, read_pcc
+from serialize import build_output_payload, validate_output_payload, write_output_json
+from tlk import TlkFormatError, build_tlk_resolver, resolve_conversations_tlk
+from validation import write_phase3_batch_report, write_phase3_report
 
 
 GAMES = ("me1", "me2", "me3", "le1", "le2", "le3")
@@ -261,3 +261,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.strict_validation and not args.validate_bioconversation_stubs:
         parser.error("--strict-validation requiere --validate-bioconversation-stubs")
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

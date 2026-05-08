@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from pcc_dialog_toolkit.pcc import PccFormatError, read_pcc
+from pcc import PccFormatError, read_pcc
 
 
 def build_phase3_report(pcc_path: str | Path) -> dict[str, object]:

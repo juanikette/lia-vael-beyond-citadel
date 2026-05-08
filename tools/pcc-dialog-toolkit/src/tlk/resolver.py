@@ -4,7 +4,7 @@ import re
 from dataclasses import replace
 from pathlib import Path
 
-from pcc_dialog_toolkit.model.ast import Conversation
+from model.ast import Conversation
 
 from .reader import TlkFile, read_tlk, resolve_tlk_string
 

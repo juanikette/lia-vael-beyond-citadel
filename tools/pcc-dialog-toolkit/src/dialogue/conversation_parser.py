@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from pcc_dialog_toolkit.model.ast import Conversation, EntryNode, ReplyNode, Speaker
-from pcc_dialog_toolkit.pcc.models import ExportEntry, PccPackage
-from pcc_dialog_toolkit.pcc.reader import _read_i32
-from pcc_dialog_toolkit.pcc.properties import (
+from model.ast import Conversation, EntryNode, ReplyNode, Speaker
+from pcc.models import ExportEntry, PccPackage
+from pcc.reader import _read_i32
+from pcc.properties import (
     analyze_array_property_layout,
     extract_bioconversation_key_properties,
     read_array_property_count,
@@ -13,8 +13,8 @@ from pcc_dialog_toolkit.pcc.properties import (
     read_array_property_i32_values,
     read_array_property_payload_info,
 )
-from pcc_dialog_toolkit.pcc.unreal_props import parse_struct_array_items_as_property_collections, PROPERTY_TYPE_NAMES
-from pcc_dialog_toolkit.dialogue.schema import ConversationListSchema, get_schema_for_profile
+from pcc.unreal_props import parse_struct_array_items_as_property_collections, PROPERTY_TYPE_NAMES
+from dialogue.schema import ConversationListSchema, get_schema_for_profile
 
 
 def _conversation_counts(package: PccPackage, export: ExportEntry) -> tuple[int, int, int]:

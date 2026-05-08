@@ -3,11 +3,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from pcc_dialog_toolkit import __version__
-from pcc_dialog_toolkit.model.ast import Conversation
+from model.ast import Conversation
 
 
 SCHEMA_VERSION = "0.1"
+TOOL_VERSION = "0.1.0"
 
 
 def build_output_payload(
@@ -20,7 +20,7 @@ def build_output_payload(
     warning_count = sum(len(item.warnings) for item in conversations)
     return {
         "schema_version": SCHEMA_VERSION,
-        "tool_version": __version__,
+        "tool_version": TOOL_VERSION,
         "input": {
             "pcc": input_pcc,
             "game": game,
