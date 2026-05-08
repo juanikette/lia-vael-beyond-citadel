@@ -41,7 +41,7 @@ class TlkFile:
 
 def _read_i32(data: bytes, offset: int) -> int:
     if offset < 0 or offset + 4 > len(data):
-        raise TlkFormatError(f"Offset fuera de rango: {offset}")
+        raise TlkFormatError(f"Offset out of range: {offset}")
     return struct.unpack_from("<i", data, offset)[0]
 
 
@@ -88,7 +88,7 @@ def read_tlk(path: str | Path) -> TlkFile:
     tlk_path = Path(path)
     data = tlk_path.read_bytes()
     if len(data) < 28:
-        raise TlkFormatError("Archivo TLK demasiado pequeno")
+        raise TlkFormatError("TLK file is too small")
 
     header = TlkHeader(
         magic=_read_i32(data, 0),
@@ -100,9 +100,9 @@ def read_tlk(path: str | Path) -> TlkFile:
         data_len=_read_i32(data, 24),
     )
     if header.magic != TLK_MAGIC:
-        raise TlkFormatError(f"Magic TLK invalido: 0x{header.magic:08X}")
+        raise TlkFormatError(f"Invalid TLK magic: 0x{header.magic:08X}")
     if min(header.male_entry_count, header.female_entry_count, header.tree_node_count, header.data_len) < 0:
-        raise TlkFormatError("Header TLK invalido: conteos negativos")
+        raise TlkFormatError("Invalid TLK header: negative counts")
 
     offset = 28
     male_stringrefs: dict[int, int] = {}
@@ -127,7 +127,7 @@ def read_tlk(path: str | Path) -> TlkFile:
         offset += 8
 
     if offset + header.data_len > len(data):
-        raise TlkFormatError("Payload Huffman TLK truncado")
+        raise TlkFormatError("Truncated TLK Huffman payload")
     bits = data[offset : offset + header.data_len]
 
     return TlkFile(

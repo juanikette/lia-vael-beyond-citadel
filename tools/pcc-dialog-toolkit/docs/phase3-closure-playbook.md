@@ -1,45 +1,45 @@
-# Fase 3 - Playbook de cierre con muestras reales
+# Phase 3 - Closure playbook with real samples
 
-Este playbook define una corrida minima para decidir si Fase 3 puede pasar a `Done`.
+This playbook defines a minimal run to decide whether Phase 3 can move to `Done`.
 
-## 1) Preparar muestras locales
+## 1) Prepare local samples
 
-Ubicar 1+ archivos por perfil objetivo:
+Place at least 1 file per target profile:
 
-- ME2 OT (ej. `samples/me2_ot/*.pcc`)
-- LE2 (ej. `samples/le2/*.pcc`)
+- ME2 OT (for example `samples/me2_ot/*.pcc`)
+- LE2 (for example `samples/le2/*.pcc`)
 
-Si los binarios no se versionan, mantenerlos solo en entorno local.
+If binaries are not versioned, keep them local only.
 
-## 2) Generar reportes batch por perfil
+## 2) Generate batch reports by profile
 
 ```bash
 pcc_dialog_extract --phase3-batch-dir samples/me2_ot --phase3-batch-glob "*.pcc" --phase3-batch-report reports/phase3-batch-me2ot.json --pretty
 pcc_dialog_extract --phase3-batch-dir samples/le2 --phase3-batch-glob "*.pcc" --phase3-batch-report reports/phase3-batch-le2.json --pretty
 ```
 
-## 3) Gate estricto por archivo
+## 3) Strict per-file gate
 
-Para cualquier archivo con dudas:
+For any file with uncertainty:
 
 ```bash
-pcc_dialog_extract "<ruta>.pcc" --validate-bioconversation-stubs --strict-validation
+pcc_dialog_extract "<path>.pcc" --validate-bioconversation-stubs --strict-validation
 ```
 
-- Exit code `0`: sin bloqueantes de validacion.
-- Exit code `3`: hay `invalid` o `needs_schema_review`.
+- Exit code `0`: no blocking validation issues.
+- Exit code `3`: `invalid` or `needs_schema_review` is present.
 
-## 4) Criterio minimo de cierre Fase 3
+## 4) Minimum closure criteria for Phase 3
 
-- `summary.invalid == 0` en muestras objetivo.
-- `summary.needs_schema_review == 0` o residual pequeno con plan de mitigacion documentado.
-- `validation_items[].parse_mode` no debe quedar dominado por `count_or_value_fallback` en muestras con BioConversation real.
-- Sin warnings criticos sin explicar.
-- Verificacion registrada en Notion (`Comandos`, `Resultados`, `Riesgos remanentes`).
+- `summary.invalid == 0` on target samples.
+- `summary.needs_schema_review == 0`, or only a small residual with a documented mitigation plan.
+- `validation_items[].parse_mode` should not be dominated by `count_or_value_fallback` on samples with real BioConversation data.
+- No unexplained critical warnings.
+- Verification logged in Notion (`Commands`, `Results`, `Remaining risks`).
 
-## 5) Si falla el gate
+## 5) If the gate fails
 
-- Revisar `validation_items` y `row_payloads` del reporte.
-- Ajustar schema por perfil (`dialogue/schema.py`) o parser de listas.
-- Si las listas reales no aparecen en tags top-level, implementar parse de `StructProperty` anidado (referencia: `ConversationExtended.cs` en LegendaryExplorer).
-- Repetir corrida hasta estabilizar.
+- Review `validation_items` and `row_payloads` from the report.
+- Adjust profile schema (`dialogue/schema.py`) or list parser logic.
+- If real lists are not exposed as top-level tags, implement nested `StructProperty` parsing (reference: `ConversationExtended.cs` in LegendaryExplorer).
+- Repeat runs until behavior is stable.

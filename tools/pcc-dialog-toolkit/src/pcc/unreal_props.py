@@ -36,7 +36,7 @@ PROPERTY_TYPE_NAMES = {
 def _resolve_name(name_index: int, names: list[NameEntry]) -> str:
     if 0 <= name_index < len(names):
         return names[name_index].text
-    raise PccFormatError(f"Name index invalido en property parse: {name_index}")
+    raise PccFormatError(f"Invalid name index in property parse: {name_index}")
 
 
 def _read_fname(data: bytes, names: list[NameEntry], offset: int) -> tuple[str, int]:
@@ -73,7 +73,7 @@ def _parse_property_header(
     data: bytes, names: list[NameEntry], cursor: int, end: int
 ) -> tuple[str, str, int, int, int, int]:
     if cursor + 24 > end:
-        raise PccFormatError("Property header truncado")
+        raise PccFormatError("Truncated property header")
 
     name, name_len = _read_fname(data, names, cursor)
     cursor += name_len
@@ -106,7 +106,7 @@ def _parse_property_header(
             meta_size = 8
 
     if cursor + meta_size > end:
-        raise PccFormatError("Property meta truncado")
+        raise PccFormatError("Truncated property metadata")
     value_offset = cursor + meta_size
 
     return name, prop_type, prop_size, array_index, value_offset, meta_size
@@ -141,11 +141,11 @@ def parse_property_collection(
         if prop_size < 0:
             if props:
                 return props, cursor
-            raise PccFormatError(f"Property size invalido: {name}")
+            raise PccFormatError(f"Invalid property size: {name}")
         if value_offset + prop_size > end:
             if props:
                 return props, cursor
-            raise PccFormatError(f"Property value fuera de rango: {name}")
+            raise PccFormatError(f"Property value out of range: {name}")
 
         value: object = None
         if prop_type in {"IntProperty", "ObjectProperty", "StringRefProperty", "NameProperty", "EnumProperty"}:

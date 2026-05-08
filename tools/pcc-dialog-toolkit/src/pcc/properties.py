@@ -46,7 +46,7 @@ class ArrayLayoutInfo:
 def _resolve_name(name_index: int, names: list[NameEntry]) -> str:
     if 0 <= name_index < len(names):
         return names[name_index].text
-    raise PccFormatError(f"Name index invalido en property tag: {name_index}")
+    raise PccFormatError(f"Invalid name index in property tag: {name_index}")
 
 
 def _skip_tag_meta(data: bytes, cursor: int, prop_type: str) -> int:
@@ -60,7 +60,7 @@ def _skip_tag_meta(data: bytes, cursor: int, prop_type: str) -> int:
 def parse_property_tags(data: bytes, names: list[NameEntry], *, start_offset: int, size: int, strict: bool = True) -> list[PropertyTag]:
     end = start_offset + size
     if end > len(data):
-        raise PccFormatError("Export data fuera de rango")
+        raise PccFormatError("Export data out of range")
 
     tags: list[PropertyTag] = []
     cursor = start_offset
@@ -146,12 +146,12 @@ def parse_property_tags(data: bytes, names: list[NameEntry], *, start_offset: in
                 if f_name_meta_aligned and not no_meta_aligned:
                     cursor += 8
             if cursor > end:
-                raise PccFormatError("Property tag fuera de rango en metadata adicional")
+                raise PccFormatError("Property tag out of range in additional metadata")
 
             value_offset = cursor
             cursor += prop_size
             if cursor > end:
-                raise PccFormatError("Property value fuera de rango")
+                raise PccFormatError("Property value out of range")
 
             tags.append(
                 PropertyTag(
@@ -420,9 +420,9 @@ def extract_bioconversation_property_tags(data: bytes, names: list[NameEntry], e
 
 def read_array_property_count(data: bytes, tag: PropertyTag) -> int:
     if tag.prop_type != "ArrayProperty":
-        raise PccFormatError(f"Propiedad no es ArrayProperty: {tag.name}")
+        raise PccFormatError(f"Property is not ArrayProperty: {tag.name}")
     if tag.size < 4:
-        raise PccFormatError(f"ArrayProperty sin longitud valida: {tag.name}")
+        raise PccFormatError(f"ArrayProperty has invalid length: {tag.name}")
     count, _ = _resolve_array_count_and_payload_start(data, tag)
     return count
 
@@ -456,7 +456,7 @@ def read_array_property_i32_values(data: bytes, tag: PropertyTag) -> list[int]:
     expected_size = count * 4
 
     if count < 0:
-        raise PccFormatError(f"ArrayProperty con longitud negativa: {tag.name}")
+        raise PccFormatError(f"ArrayProperty has negative length: {tag.name}")
     # Strict mode: only accept tightly packed i32 arrays.
     # If payload contains extra data, it likely represents struct/object rows
     # and should be handled by a dedicated parser.
@@ -473,7 +473,7 @@ def read_array_property_i32_values(data: bytes, tag: PropertyTag) -> list[int]:
 
 def read_array_property_i32_rows(data: bytes, tag: PropertyTag, *, item_width: int) -> list[list[int]]:
     if item_width <= 0:
-        raise PccFormatError(f"item_width invalido para array: {item_width}")
+        raise PccFormatError(f"Invalid item_width for array: {item_width}")
 
     values = read_array_property_i32_values(data, tag)
     expected = len(values)
@@ -514,7 +514,7 @@ def analyze_array_property_layout(data: bytes, tag: PropertyTag) -> ArrayLayoutI
 
 def read_array_property_struct_head_i32(data: bytes, tag: PropertyTag, *, head_i32: int) -> list[list[int]]:
     if head_i32 <= 0:
-        raise PccFormatError(f"head_i32 invalido: {head_i32}")
+        raise PccFormatError(f"Invalid head_i32: {head_i32}")
 
     info = analyze_array_property_layout(data, tag)
     if info.count <= 0 or info.bytes_per_item is None:

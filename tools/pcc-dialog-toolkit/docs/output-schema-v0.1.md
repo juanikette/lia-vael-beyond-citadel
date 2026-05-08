@@ -1,6 +1,6 @@
 # Output JSON Schema v0.1 (MVP)
 
-Este documento define el contrato de salida para `output.json`.
+This document defines the output contract for `output.json`.
 
 ## Envelope
 

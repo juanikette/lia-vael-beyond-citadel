@@ -532,7 +532,7 @@ def test_phase3_cli_strict_requires_validate_flag(tmp_path: Path) -> None:
     )
 
     assert result.returncode != 0
-    assert "--strict-validation requiere --validate-bioconversation-stubs" in result.stderr
+    assert "--strict-validation requires --validate-bioconversation-stubs" in result.stderr
 
 
 def test_phase3_struct_head_mode_mapping(tmp_path: Path) -> None:

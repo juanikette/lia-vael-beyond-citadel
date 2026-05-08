@@ -1,56 +1,56 @@
-# Plan de implementacion - toolkit de dialogos Mass Effect (OT/LE)
+# Implementation plan - Mass Effect dialogue toolkit (OT/LE)
 
-## Nombre de herramienta
+## Tool name
 
-Nombre seleccionado: **pcc-dialog-toolkit**
+Selected name: **pcc-dialog-toolkit**
 
-## Fuente de conocimiento externa (obligatoria)
+## External knowledge source (required)
 
-Repositorio de referencia para procesos y validacion tecnica:
+Reference repository for process and technical validation:
 
 - https://github.com/ME3Tweaks/LegendaryExplorer/
 
-Regla de uso durante implementacion:
+Usage rule during implementation:
 
-- Consultar LegendaryExplorer antes de cerrar cada fase que toque parseo de PCC/TLK.
-- Priorizar nomenclatura, orden de lectura y comportamiento observables en herramientas maduras.
-- No copiar codigo de forma ciega: usarlo como guia de formato, casos borde y verificacion.
-- Registrar en notas de fase que archivos/clases de LegendaryExplorer se usaron como referencia.
+- Consult LegendaryExplorer before closing each phase that touches PCC/TLK parsing.
+- Prioritize naming, read order, and behavior observable in mature tools.
+- Do not copy code blindly: use it as a guide for format details, edge cases, and verification.
+- Record in phase notes which LegendaryExplorer files/classes were used as references.
 
-## Objetivo MVP
+## MVP goal
 
-Implementar un CLI llamado `pcc_dialog_extract` que:
+Implement a CLI named `pcc_dialog_extract` that:
 
-1. Lea un archivo `.pcc` de ME OT/LE.
-2. Detecte exports `BioConversation`.
-3. Extraiga nodos, replies, speakers y `StrRef`.
-4. Resuelva texto via TLK (`BIOGame_INT.tlk` + DLC TLKs).
-5. Exporte resultado en `output.json`.
+1. Reads a ME OT/LE `.pcc` file.
+2. Detects `BioConversation` exports.
+3. Extracts nodes, replies, speakers, and `StrRef`.
+4. Resolves text via TLK (`BIOGame_INT.tlk` + DLC TLKs).
+5. Exports the result to `output.json`.
 
-## Alcance y limites
+## Scope and limits
 
-### Incluye
-- Parse parcial de formato package (names/imports/exports/properties relevantes).
-- Parse de estructuras necesarias para conversaciones.
-- Resolucion de `StrRef -> text`.
-- Salida JSON estable y versionada.
+### Includes
+- Partial package-format parsing (relevant names/imports/exports/properties).
+- Parsing of structures required for conversations.
+- `StrRef -> text` resolution.
+- Stable and versioned JSON output.
 
-### No incluye (MVP)
-- Render, mallas, texturas, shaders.
-- Edicion visual.
-- FaceFX/Wwise avanzados.
-- Reinyeccion binaria completa (se disena en fase posterior).
+### Excludes (MVP)
+- Rendering, meshes, textures, shaders.
+- Visual editing.
+- Advanced FaceFX/Wwise.
+- Full binary reinjection (designed in a later phase).
 
-## Stack recomendado
+## Recommended stack
 
 - **MVP**: Python 3.11+
-- `typer` o `argparse` para CLI
-- `pydantic` (opcional) para validar AST/salida JSON
-- Tests con `pytest`
+- `typer` or `argparse` for CLI
+- `pydantic` (optional) for AST/JSON output validation
+- Tests with `pytest`
 
-Razon: velocidad de iteracion alta para validar formato de datos y flujo completo.
+Reason: high iteration speed for validating data format and end-to-end flow.
 
-## Arquitectura propuesta
+## Proposed architecture
 
 ```text
 input.pcc
@@ -62,7 +62,7 @@ input.pcc
   -> output.json
 ```
 
-Modulos sugeridos:
+Suggested modules:
 
 - `src/cli.py`
 - `src/pcc/reader.py`
@@ -74,7 +74,7 @@ Modulos sugeridos:
 - `src/model/ast.py`
 - `src/serialize/json_writer.py`
 
-## Modelo AST v0.1
+## AST model v0.1
 
 ### Conversation
 - `id`: string (object name)
@@ -105,7 +105,7 @@ Modulos sugeridos:
 - `tag`: string|null
 - `display_name`: string|null
 
-## CLI objetivo (fase 1)
+## Target CLI (phase 1)
 
 ```bash
 pcc_dialog_extract input.pcc \
@@ -115,67 +115,67 @@ pcc_dialog_extract input.pcc \
   -o output.json
 ```
 
-Flags minimas:
+Minimum flags:
 - `--game`: `me1|me2|me3|le1|le2|le3`
-- `--tlk`: ruta TLK base
-- `--dlc-dir`: carpeta DLC (opcional)
-- `-o, --output`: archivo JSON de salida
-- `--pretty`: JSON legible
+- `--tlk`: base TLK path
+- `--dlc-dir`: DLC folder (optional)
+- `-o, --output`: output JSON file
+- `--pretty`: human-readable JSON
 
-## Plan por fases
+## Phase plan
 
-### Fase 0 - Preparacion del repo
-- Crear estructura de carpetas.
-- Definir formato de salida JSON v0.1.
-- Agregar casos de prueba con 1-2 PCC reales conocidos.
+### Phase 0 - Repository setup
+- Create folder structure.
+- Define output JSON format v0.1.
+- Add test cases with 1-2 known real PCC files.
 
-### Fase 1 - Lectura package basica
-- Implementar lector de header + tablas names/imports/exports.
-- Exponer API para iterar exports por clase/nombre.
-- Verificar lectura de varios PCC OT/LE.
+### Phase 1 - Basic package reading
+- Implement header + names/imports/exports table reader.
+- Expose API to iterate exports by class/name.
+- Verify reading across several OT/LE PCC files.
 
-### Fase 2 - Deteccion BioConversation
-- Identificar exports con clase `BioConversation`.
-- Dump de metadata minima (nombre, indice, clase, offset, size).
+### Phase 2 - BioConversation detection
+- Identify exports with class `BioConversation`.
+- Dump minimal metadata (name, index, class, offset, size).
 
-### Fase 3 - Parse de conversacion
-- Parsear propiedades y listas clave (EntryList/ReplyList/SpeakerList).
-- Resolver links entre nodos.
-- Construir AST normalizado.
+### Phase 3 - Conversation parsing
+- Parse key properties/lists (EntryList/ReplyList/SpeakerList).
+- Resolve links between nodes.
+- Build normalized AST.
 
-### Fase 4 - TLK resolver
-- Implementar lector TLK base.
-- Resolver `StrRef` de AST.
-- Cargar TLKs DLC y aplicar prioridad/override.
+### Phase 4 - TLK resolver
+- Implement base TLK reader.
+- Resolve AST `StrRef` values.
+- Load DLC TLKs and apply priority/override.
 
-### Fase 5 - Serializer y CLI estable
-- Exportar JSON final con esquema versionado.
-- Manejo de errores por conversacion (no abortar todo el archivo).
-- Logs de warnings para campos no parseados.
+### Phase 5 - Stable serializer and CLI
+- Export final JSON with versioned schema.
+- Per-conversation error handling (do not abort entire file).
+- Warning logs for unparsed fields.
 
-### Fase 6 - QA del MVP
-- Validar salida con muestras de ME2 OT y LE2.
-- Comparar lineas puntuales contra resultado en juego/LEX.
-- Congelar `v0.1.0` del extractor.
+### Phase 6 - MVP QA
+- Validate output against ME2 OT and LE2 samples.
+- Compare selected lines against in-game/LEX results.
+- Freeze extractor `v0.1.0`.
 
-## Criterios de aceptacion MVP
+## MVP acceptance criteria
 
-- Dado un `.pcc` valido con `BioConversation`, genera `output.json` sin crash.
-- Incluye nodos, replies, speakers, `StrRef` y texto resuelto (si existe).
-- Si una conversacion falla, se reporta y continua con las demas.
-- Soporta al menos ME2 OT en una muestra real de Citadel.
+- Given a valid `.pcc` with `BioConversation`, generate `output.json` without crashing.
+- Include nodes, replies, speakers, `StrRef`, and resolved text (if available).
+- If one conversation fails, report it and continue with the rest.
+- Support at least ME2 OT on one real Citadel sample.
 
-## Riesgos y mitigaciones
+## Risks and mitigations
 
-- Variaciones OT vs LE en serializacion:
-  - Mitigar con capa `game profile` por version.
-- Estructuras incompletas/no estandar:
-  - Mitigar con parse defensivo + warnings.
-- TLK DLC con overrides:
-  - Mitigar aplicando orden de carga configurable.
+- OT vs LE serialization differences:
+  - Mitigate with a per-version `game profile` layer.
+- Incomplete/non-standard structures:
+  - Mitigate with defensive parsing + warnings.
+- DLC TLK overrides:
+  - Mitigate with configurable load order.
 
-## Siguiente paso inmediato
+## Immediate next step
 
-1. Inicializar esqueleto Python y CLI minima.
-2. Implementar `pcc_reader` (header + names + exports).
-3. Entregar comando que liste `BioConversation` por archivo como primer hito verificable.
+1. Initialize Python skeleton and minimal CLI.
+2. Implement `pcc_reader` (header + names + exports).
+3. Deliver a command that lists `BioConversation` per file as the first verifiable milestone.

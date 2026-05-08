@@ -1,6 +1,6 @@
-# Fase 4 - Validacion real TLK (ME2 OT)
+# Phase 4 - Real TLK validation (ME2 OT)
 
-Comando reproducible para validar resolucion de `StrRef` con TLK base y DLC:
+Reproducible command to validate `StrRef` resolution with base TLK and DLC:
 
 ```bash
 PYTHONPATH=src python -c "from pathlib import Path; import json; from pcc import read_pcc; from dialogue import parse_all_bioconversation_stubs; from tlk import build_tlk_resolver, resolve_conversations_tlk; game=Path(r'C:\\Program Files\\EA Games\\Mass Effect 2'); cooked=game/'BioGame'/'CookedPC'; tlk= cooked/'BIOGame_INT.tlk'; dlc=game/'BioGame'/'DLC'; pccs=sorted(cooked.glob('BioD_*LOC_INT.pcc')); base=build_tlk_resolver(base_tlk_path=tlk, dlc_dir=None); with_dlc=build_tlk_resolver(base_tlk_path=tlk, dlc_dir=dlc); files=0; conv=0; entry_refs=0; entry_res_base=0; entry_res_dlc=0; reply_refs=0; reply_res_base=0; reply_res_dlc=0; diff=0; parse_errors=[]; \
@@ -19,8 +19,8 @@ for p in pccs:\
 out={'scope':{'files_considered':len(pccs),'files_processed':files,'tlk_base':str(tlk),'dlc_dir':str(dlc)},'totals':{'conversations':conv,'entry_strrefs':entry_refs,'entry_resolved_base':entry_res_base,'entry_resolved_with_dlc':entry_res_dlc,'reply_strrefs':reply_refs,'reply_resolved_base':reply_res_base,'reply_resolved_with_dlc':reply_res_dlc,'text_differences_base_vs_dlc':diff},'parse_errors_count':len(parse_errors),'parse_errors_sample':parse_errors[:5]}; print(json.dumps(out, ensure_ascii=False))"
 ```
 
-Notas:
+Notes:
 
-- Requiere `lzallright` para PCC ME2 OT comprimidos.
-- El resolver DLC ignora `*_Test_INT.tlk` por defecto.
-- Si `Mount.dlc` no existe en una carpeta DLC, el orden usa fallback estable por ruta.
+- Requires `lzallright` for compressed ME2 OT PCC files.
+- The DLC resolver ignores `*_Test_INT.tlk` by default.
+- If `Mount.dlc` does not exist in a DLC folder, ordering uses a stable path-based fallback.
