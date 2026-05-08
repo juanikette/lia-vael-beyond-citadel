@@ -50,3 +50,5 @@ Flujo sugerido de cierre Fase 3 con muestras reales:
 Guia operativa detallada: `docs/phase3-closure-playbook.md`.
 
 Guia operativa Fase 6: `docs/phase6-qa-runbook.md`.
+
+Notas de release RC (scope OT): `docs/release-v0.1.0-rc.md`.
