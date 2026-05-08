@@ -74,7 +74,7 @@ def _parse_header(data: bytes) -> PccHeader:
     if cursor < 0 or cursor + 4 > len(data):
         raise PccFormatError("Header truncado en package folder")
 
-    _flags = _read_u32(data, cursor)
+    flags = _read_u32(data, cursor)
     cursor += 4
 
     name_count = _read_i32(data, cursor)
@@ -96,6 +96,7 @@ def _parse_header(data: bytes) -> PccHeader:
         magic=magic,
         unreal_version=unreal_version,
         licensee_version=licensee_version,
+        flags=flags,
         name_count=name_count,
         name_offset=name_offset,
         export_count=export_count,
@@ -190,6 +191,9 @@ def read_pcc(path: str | Path) -> PccPackage:
     p = Path(path)
     data = p.read_bytes()
     header = _parse_header(data)
+
+    if header.flags & 0x02000000:
+        raise PccFormatError("Paquete comprimido no soportado por el lector actual")
     names = _parse_names(data, header)
     imports = _parse_imports(data, header)
     exports = _parse_exports(data, header)

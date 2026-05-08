@@ -8,6 +8,7 @@ class PccHeader:
     magic: int
     unreal_version: int
     licensee_version: int
+    flags: int
     name_count: int
     name_offset: int
     export_count: int

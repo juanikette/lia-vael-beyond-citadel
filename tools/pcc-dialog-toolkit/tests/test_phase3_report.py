@@ -71,6 +71,20 @@ def test_phase3_build_report_handles_parse_error(tmp_path: Path) -> None:
     assert report["summary"]["needs_schema_review"] == 1
 
 
+def test_phase3_build_report_handles_compressed_flag(tmp_path: Path) -> None:
+    pcc_path = tmp_path / "compressed.pcc"
+    blob = bytearray(_build_pcc_with_bioconv_row_payloads())
+    # flags are after folder name; in fixtures it's at offset 21
+    flags = int.from_bytes(blob[21:25], byteorder="little", signed=False)
+    flags |= 0x02000000
+    blob[21:25] = flags.to_bytes(4, byteorder="little", signed=False)
+    pcc_path.write_bytes(bytes(blob))
+
+    report = build_phase3_report(pcc_path)
+    assert report["parse_error"] is not None
+    assert report["parse_error"] is not None
+
+
 def test_phase3_batch_summary_counts_parse_errors(tmp_path: Path) -> None:
     ok = tmp_path / "ok.pcc"
     bad = tmp_path / "bad.pcc"
