@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from pcc_dialog_toolkit.pcc import PccFormatError, read_pcc
+from pcc_dialog_toolkit.validation import write_phase3_report
 
 
 GAMES = ("me1", "me2", "me3", "le1", "le2", "le3")
@@ -50,6 +51,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--strict-validation",
         action="store_true",
         help="Devuelve exit code 3 si hay conversacion invalida o needs_schema_review",
+    )
+    parser.add_argument(
+        "--phase3-report",
+        help="Escribe reporte JSON consolidado de validacion Fase 3",
     )
     parser.add_argument("--version", action="store_true", help="Muestra la version actual")
     return parser
@@ -128,6 +133,10 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(payloads, indent=2, ensure_ascii=False))
         else:
             print(json.dumps(payloads, ensure_ascii=False))
+
+    if args.phase3_report:
+        output_path = write_phase3_report(input_path, args.phase3_report, pretty=args.pretty)
+        print(f"Phase3 report escrito: {output_path}")
 
     if args.validate_bioconversation_stubs:
         report = package.validate_bioconversation_stubs()

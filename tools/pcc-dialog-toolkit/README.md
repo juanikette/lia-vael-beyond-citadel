@@ -15,6 +15,13 @@ pcc_dialog_extract path/al/archivo.pcc --dump-bioconversation-stub --pretty
 pcc_dialog_extract path/al/archivo.pcc --dump-bioconversation-row-payloads --pretty
 pcc_dialog_extract path/al/archivo.pcc --validate-bioconversation-stubs --pretty
 pcc_dialog_extract path/al/archivo.pcc --validate-bioconversation-stubs --strict-validation
+pcc_dialog_extract path/al/archivo.pcc --phase3-report reports/phase3-sample.json --pretty
 ```
 
 `--validate-bioconversation-stubs` marca `needs_schema_review=true` cuando el perfil es desconocido o el parseo sugiere desajuste de esquema.
+
+Flujo sugerido de cierre Fase 3 con muestras reales:
+
+1. Generar reporte por muestra con `--phase3-report`.
+2. Revisar `summary.needs_schema_review` y `validation_items`.
+3. Repetir con `--validate-bioconversation-stubs --strict-validation` para usar exit code como gate.
