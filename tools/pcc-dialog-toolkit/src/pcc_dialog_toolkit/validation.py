@@ -25,14 +25,27 @@ def build_phase3_report(pcc_path: str | Path) -> dict[str, object]:
             "row_payloads": [],
         }
 
-    validation_items = package.validate_bioconversation_stubs()
-    summary = package.summarize_bioconversation_validation()
-    row_payloads = package.inspect_bioconversation_row_payloads()
+    try:
+        validation_items = package.validate_bioconversation_stubs()
+        summary = package.summarize_bioconversation_validation()
+        row_payloads = package.inspect_bioconversation_row_payloads()
+        parse_error = None
+    except (PccFormatError, OSError) as exc:
+        validation_items = []
+        summary = {
+            "total": 0,
+            "valid": 0,
+            "invalid": 0,
+            "needs_schema_review": 1,
+            "by_parse_mode": {},
+        }
+        row_payloads = []
+        parse_error = str(exc)
 
     return {
         "pcc_path": str(pcc_path),
         "game_profile": package.infer_game_profile(),
-        "parse_error": None,
+        "parse_error": parse_error,
         "summary": summary,
         "validation_items": validation_items,
         "row_payloads": row_payloads,

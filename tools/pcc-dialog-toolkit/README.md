@@ -5,6 +5,7 @@ MVP para extraer conversaciones `BioConversation` desde archivos `.pcc` (Mass Ef
 ## Estado actual
 
 - Fase 3 en progreso: bootstrap de parseo de propiedades clave (`EntryList`, `ReplyList`, `SpeakerList`).
+- Soporte ME2 OT comprimido (LZO) requiere `lzallright`.
 
 ## Uso (actual)
 

@@ -118,6 +118,30 @@ class PccPackage:
             )
         return rows
 
+    def inspect_bioconversation_property_tags(self) -> list[dict[str, object]]:
+        from .properties import extract_bioconversation_property_tags
+
+        rows: list[dict[str, object]] = []
+        for item in self.iter_exports(class_name="BioConversation"):
+            tags = extract_bioconversation_property_tags(self.raw_data, self.names, item)
+            rows.append(
+                {
+                    "name": item.object_name,
+                    "index": item.index,
+                    "properties": [
+                        {
+                            "name": tag.name,
+                            "type": tag.prop_type,
+                            "size": tag.size,
+                            "array_index": tag.array_index,
+                            "value_offset": tag.value_offset,
+                        }
+                        for tag in tags
+                    ],
+                }
+            )
+        return rows
+
     def parse_bioconversation_stubs(self) -> list[dict[str, object]]:
         from pcc_dialog_toolkit.dialogue import parse_all_bioconversation_stubs
 

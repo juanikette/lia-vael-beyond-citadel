@@ -87,6 +87,9 @@ def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conv
     warnings: list[str] = []
     tags = extract_bioconversation_key_properties(package.raw_data, package.names, export)
     tag_map = {tag.name: tag for tag in tags}
+    missing_keys = [key for key in ("EntryList", "ReplyList", "SpeakerList") if key not in tag_map]
+    if missing_keys:
+        warnings.append(f"missing_key_properties:{','.join(missing_keys)}")
     entry_matrix = read_array_property_struct_i32_matrix(package.raw_data, tag_map["EntryList"]) if "EntryList" in tag_map else []
     reply_matrix = read_array_property_struct_i32_matrix(package.raw_data, tag_map["ReplyList"]) if "ReplyList" in tag_map else []
     speaker_matrix = read_array_property_struct_i32_matrix(package.raw_data, tag_map["SpeakerList"]) if "SpeakerList" in tag_map else []

@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Lia'Vael Mod Team" }]
-dependencies = []
+dependencies = ["lzallright>=0.2.6"]
 
 [project.optional-dependencies]
 dev = ["pytest>=9.0"]

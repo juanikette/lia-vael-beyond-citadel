@@ -33,6 +33,7 @@ pcc_dialog_extract "<ruta>.pcc" --validate-bioconversation-stubs --strict-valida
 
 - `summary.invalid == 0` en muestras objetivo.
 - `summary.needs_schema_review == 0` o residual pequeno con plan de mitigacion documentado.
+- `validation_items[].parse_mode` no debe quedar dominado por `count_or_value_fallback` en muestras con BioConversation real.
 - Sin warnings criticos sin explicar.
 - Verificacion registrada en Notion (`Comandos`, `Resultados`, `Riesgos remanentes`).
 
@@ -40,4 +41,5 @@ pcc_dialog_extract "<ruta>.pcc" --validate-bioconversation-stubs --strict-valida
 
 - Revisar `validation_items` y `row_payloads` del reporte.
 - Ajustar schema por perfil (`dialogue/schema.py`) o parser de listas.
+- Si las listas reales no aparecen en tags top-level, implementar parse de `StructProperty` anidado (referencia: `ConversationExtended.cs` en LegendaryExplorer).
 - Repetir corrida hasta estabilizar.

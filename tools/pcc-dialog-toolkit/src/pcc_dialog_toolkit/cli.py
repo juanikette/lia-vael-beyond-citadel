@@ -33,6 +33,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Inspecciona propiedades clave de BioConversation (EntryList/ReplyList/SpeakerList)",
     )
     parser.add_argument(
+        "--dump-bioconversation-property-tags",
+        action="store_true",
+        help="Vuelca todos los property tags top-level detectados en BioConversation",
+    )
+    parser.add_argument(
         "--dump-bioconversation-stub",
         action="store_true",
         help="Genera AST stub de conversaciones BioConversation",
@@ -159,6 +164,13 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(payloads, indent=2, ensure_ascii=False))
         else:
             print(json.dumps(payloads, ensure_ascii=False))
+
+    if args.dump_bioconversation_property_tags:
+        tags = package.inspect_bioconversation_property_tags()
+        if args.pretty:
+            print(json.dumps(tags, indent=2, ensure_ascii=False))
+        else:
+            print(json.dumps(tags, ensure_ascii=False))
 
     if args.phase3_report:
         output_path = write_phase3_report(input_path, args.phase3_report, pretty=args.pretty)
