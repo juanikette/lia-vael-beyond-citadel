@@ -27,3 +27,5 @@ Flujo sugerido de cierre Fase 3 con muestras reales:
 2. Revisar `summary.needs_schema_review` y `validation_items`.
 3. Repetir con `--validate-bioconversation-stubs --strict-validation` para usar exit code como gate.
 4. Para varias muestras, usar `--phase3-batch-report` y revisar el `summary` agregado.
+
+Guia operativa detallada: `docs/phase3-closure-playbook.md`.
