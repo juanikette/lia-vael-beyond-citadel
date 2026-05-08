@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from pcc_dialog_toolkit.pcc import PccFormatError, read_pcc
-from pcc_dialog_toolkit.validation import write_phase3_report
+from pcc_dialog_toolkit.validation import write_phase3_batch_report, write_phase3_report
 
 
 GAMES = ("me1", "me2", "me3", "le1", "le2", "le3")
@@ -56,6 +56,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--phase3-report",
         help="Escribe reporte JSON consolidado de validacion Fase 3",
     )
+    parser.add_argument(
+        "--phase3-batch-dir",
+        help="Directorio para generar reporte batch Fase 3 sobre multiples PCC",
+    )
+    parser.add_argument(
+        "--phase3-batch-glob",
+        default="*.pcc",
+        help="Patron glob para batch report (default: *.pcc)",
+    )
+    parser.add_argument(
+        "--phase3-batch-report",
+        help="Ruta JSON de salida para reporte batch Fase 3",
+    )
     parser.add_argument("--version", action="store_true", help="Muestra la version actual")
     return parser
 
@@ -66,6 +79,19 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.version:
         print("pcc-dialog-toolkit 0.1.0")
+        return 0
+
+    if args.phase3_batch_report:
+        if not args.phase3_batch_dir:
+            parser.error("--phase3-batch-report requiere --phase3-batch-dir")
+        batch_dir = Path(args.phase3_batch_dir)
+        if not batch_dir.exists() or not batch_dir.is_dir():
+            parser.error(f"No existe el directorio batch: {batch_dir}")
+        files = sorted(batch_dir.glob(args.phase3_batch_glob))
+        if not files:
+            parser.error(f"No hay archivos para batch con glob: {args.phase3_batch_glob}")
+        output_path = write_phase3_batch_report(files, args.phase3_batch_report, pretty=args.pretty)
+        print(f"Phase3 batch report escrito: {output_path}")
         return 0
 
     if not args.input_pcc:
