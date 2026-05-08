@@ -75,3 +75,16 @@ If warnings or conversation-level errors are present, it also prints them to the
 - `summary`
 - `conversations`
 - `errors`
+
+## Runbooks index
+
+- `docs/phase0-setup-checklist.md` - environment/bootstrap checklist.
+- `docs/phase1-pcc-reader-smoke.md` - basic PCC header/table reader verification.
+- `docs/phase2-bioconversation-detection.md` - BioConversation detection verification.
+- `docs/phase3-closure-playbook.md` - closure gate for semantic parsing quality.
+- `docs/phase4-validation-runbook.md` - TLK resolution validation with DLC precedence.
+- `docs/phase5-output-contract-runbook.md` - output schema and resilient CLI contract checks.
+- `docs/phase6-qa-runbook.md` - OT/LE QA execution and LEX cross-check workflow.
+- `docs/output-schema-v0.1.md` - JSON contract reference.
+- `docs/legendaryexplorer-reference-map.md` - LEX reference mapping by phase.
+- `docs/release-v0.1.0-rc.md` - current RC release notes.
