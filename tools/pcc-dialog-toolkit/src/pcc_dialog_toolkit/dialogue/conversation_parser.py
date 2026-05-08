@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pcc_dialog_toolkit.model.ast import Conversation, EntryNode, ReplyNode, Speaker
 from pcc_dialog_toolkit.pcc.models import ExportEntry, PccPackage
+from pcc_dialog_toolkit.pcc.reader import _read_i32
 from pcc_dialog_toolkit.pcc.properties import (
     analyze_array_property_layout,
     extract_bioconversation_key_properties,
@@ -10,7 +11,9 @@ from pcc_dialog_toolkit.pcc.properties import (
     read_array_property_struct_i32_matrix,
     read_array_property_struct_head_i32,
     read_array_property_i32_values,
+    read_array_property_payload_info,
 )
+from pcc_dialog_toolkit.pcc.unreal_props import parse_struct_array_items_as_property_collections, PROPERTY_TYPE_NAMES
 from pcc_dialog_toolkit.dialogue.schema import ConversationListSchema, get_schema_for_profile
 
 
@@ -73,6 +76,150 @@ def _conversation_row_arrays(
     return entry_rows, reply_rows, speaker_rows, used_struct_head, used_struct_matrix
 
 
+def _row_payload_is_coherent(
+    entry_rows: list[list[int]], reply_rows: list[list[int]], speaker_rows: list[list[int]]
+) -> bool:
+    entry_ids = [row[0] for row in entry_rows if row]
+    reply_ids = [row[0] for row in reply_rows if row]
+    speaker_ids = [row[0] for row in speaker_rows if row]
+    if len(entry_ids) != len(set(entry_ids)):
+        return False
+    if len(reply_ids) != len(set(reply_ids)):
+        return False
+    if len(speaker_ids) != len(set(speaker_ids)):
+        return False
+
+    known_speakers = set(speaker_ids)
+    for row in entry_rows:
+        if len(row) > 1 and row[1] >= 0 and row[1] not in known_speakers:
+            return False
+    return True
+
+
+def _has_struct_signature(package: PccPackage, *, payload_offset: int, payload_size: int) -> bool:
+    if payload_size < 24:
+        return False
+    end = payload_offset + payload_size
+    if payload_offset < 0 or end > len(package.raw_data):
+        return False
+
+    a = _read_i32(package.raw_data, payload_offset)
+    b = _read_i32(package.raw_data, payload_offset + 4)
+    ta = _read_i32(package.raw_data, payload_offset + 8)
+    tb = _read_i32(package.raw_data, payload_offset + 12)
+
+    a_ok = 0 <= a < len(package.names)
+    b_ok = 0 <= b < len(package.names)
+    if not (a_ok or b_ok):
+        return False
+
+    ta_name = package.names[ta].text if 0 <= ta < len(package.names) else None
+    tb_name = package.names[tb].text if 0 <= tb < len(package.names) else None
+    return (ta_name in PROPERTY_TYPE_NAMES) or (tb_name in PROPERTY_TYPE_NAMES)
+
+
+def _try_semantic_struct_nodes(
+    package: PccPackage,
+    tag_map: dict[str, object],
+) -> tuple[list[EntryNode], list[ReplyNode], list[Speaker]] | None:
+    if "EntryList" not in tag_map:
+        return None
+
+    entry_count, entry_payload, entry_payload_size = read_array_property_payload_info(package.raw_data, tag_map["EntryList"])
+    if entry_count <= 0 or entry_payload_size <= 0:
+        return None
+    if not _has_struct_signature(package, payload_offset=entry_payload, payload_size=entry_payload_size):
+        return None
+
+    try:
+        entry_items = parse_struct_array_items_as_property_collections(
+            package.raw_data,
+            package.names,
+            payload_offset=entry_payload,
+            payload_size=entry_payload_size,
+            count=entry_count,
+        )
+        reply_items = []
+        if "ReplyList" in tag_map:
+            reply_count, reply_payload, reply_payload_size = read_array_property_payload_info(package.raw_data, tag_map["ReplyList"])
+            reply_items = parse_struct_array_items_as_property_collections(
+                package.raw_data,
+                package.names,
+                payload_offset=reply_payload,
+                payload_size=reply_payload_size,
+                count=max(0, reply_count),
+            )
+    except Exception:
+        return None
+
+    if not entry_items:
+        return None
+
+    entries: list[EntryNode] = []
+    for idx, item in enumerate(entry_items):
+        sr_text = item.get("srText")
+        spk = item.get("nSpeakerIndex")
+        speaker_id = int(spk.value) if spk and isinstance(spk.value, int) and spk.value >= 0 else None
+        entries.append(
+            EntryNode(
+                id=idx,
+                speaker_id=speaker_id,
+                speaker_tag=None,
+                listener_tag=None,
+                line_strref=int(sr_text.value) if sr_text and isinstance(sr_text.value, int) else None,
+                line_text=None,
+                reply_links=[],
+            )
+        )
+
+    replies: list[ReplyNode] = []
+    for idx, item in enumerate(reply_items):
+        sr_text = item.get("srText")
+        target = item.get("nIndex") or item.get("nEntryIndex")
+        cond_func = item.get("nConditionalFunc")
+        cond_param = item.get("nConditionalParam")
+        refs: list[str] = []
+        if cond_func and isinstance(cond_func.value, int) and cond_func.value >= 0:
+            refs.append(f"cond_func:{cond_func.value}")
+        if cond_param and isinstance(cond_param.value, int) and cond_param.value != 0:
+            refs.append(f"cond_param:{cond_param.value}")
+        replies.append(
+            ReplyNode(
+                id=idx,
+                line_strref=int(sr_text.value) if sr_text and isinstance(sr_text.value, int) else None,
+                line_text=None,
+                target_entry_id=int(target.value) if target and isinstance(target.value, int) else None,
+                condition_refs=refs,
+            )
+        )
+
+    speakers: list[Speaker] = []
+    if "SpeakerList" in tag_map:
+        spk_count, spk_payload, spk_payload_size = read_array_property_payload_info(package.raw_data, tag_map["SpeakerList"])
+        if spk_count > 0 and spk_payload_size > 0 and _has_struct_signature(package, payload_offset=spk_payload, payload_size=spk_payload_size):
+            try:
+                speaker_items = parse_struct_array_items_as_property_collections(
+                    package.raw_data,
+                    package.names,
+                    payload_offset=spk_payload,
+                    payload_size=spk_payload_size,
+                    count=spk_count,
+                )
+                for idx, item in enumerate(speaker_items):
+                    tag_prop = item.get("sSpeakerTag")
+                    speakers.append(
+                        Speaker(
+                            id=idx,
+                            tag=str(tag_prop.value) if tag_prop and isinstance(tag_prop.value, str) else None,
+                            display_name=None,
+                        )
+                    )
+            except Exception:
+                speakers = []
+
+    return entries, replies, speakers
+
+
 def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conversation:
     game_profile = package.infer_game_profile()
     schema = get_schema_for_profile(game_profile)
@@ -84,11 +231,24 @@ def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conv
         schema,
     )
     row_mode = bool(entry_rows and reply_rows and speaker_rows)
+    row_payload_rejected = False
+    if row_mode and not _row_payload_is_coherent(entry_rows, reply_rows, speaker_rows):
+        row_mode = False
+        row_payload_rejected = True
+        used_struct_head = False
+        used_struct_matrix = False
     warnings: list[str] = []
+    if entry_count == 0 and reply_count == 0 and speaker_count == 0:
+        warnings.append("empty_key_arrays")
     tags = extract_bioconversation_key_properties(package.raw_data, package.names, export)
     tag_map = {tag.name: tag for tag in tags}
+    semantic_mode = False
+    semantic_nodes = _try_semantic_struct_nodes(package, tag_map)
+    if semantic_nodes is not None:
+        semantic_mode = True
+
     missing_keys = [key for key in ("EntryList", "ReplyList", "SpeakerList") if key not in tag_map]
-    if missing_keys:
+    if missing_keys and not semantic_mode:
         warnings.append(f"missing_key_properties:{','.join(missing_keys)}")
     entry_matrix = read_array_property_struct_i32_matrix(package.raw_data, tag_map["EntryList"]) if "EntryList" in tag_map else []
     reply_matrix = read_array_property_struct_i32_matrix(package.raw_data, tag_map["ReplyList"]) if "ReplyList" in tag_map else []
@@ -100,7 +260,7 @@ def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conv
         if tag is None:
             continue
         layout = analyze_array_property_layout(package.raw_data, tag)
-        if not layout.is_tight_i32 and layout.count > 0 and not (used_struct_head or used_struct_matrix):
+        if not layout.is_tight_i32 and layout.count > 0 and not semantic_mode and not (used_struct_head or used_struct_matrix):
             warnings.append(
                 f"non_tight_i32_array:{key}:count={layout.count}:bytes_per_item={layout.bytes_per_item}:remainder={layout.remainder}"
             )
@@ -109,7 +269,9 @@ def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conv
     reply_targets = reply_values if len(reply_values) == reply_count else [i if i < entry_count else -1 for i in range(reply_count)]
     speaker_ids = speaker_values if len(speaker_values) == speaker_count else list(range(speaker_count))
 
-    if row_mode:
+    if semantic_mode and semantic_nodes is not None:
+        entries, replies, speakers = semantic_nodes
+    elif row_mode:
         entries = []
         for idx, row in enumerate(entry_rows):
             listener_tag = None
@@ -134,7 +296,9 @@ def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conv
                 )
             )
     else:
-        if entry_rows or reply_rows or speaker_rows:
+        if row_payload_rejected:
+            warnings.append("row_payload_incoherent_fallback_applied")
+        elif entry_rows or reply_rows or speaker_rows:
             warnings.append("partial_row_payload_detected_fallback_applied")
         entries = [
             EntryNode(
@@ -149,7 +313,9 @@ def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conv
             for i in entry_ids
         ]
 
-    if row_mode:
+    if semantic_mode:
+        pass
+    elif row_mode:
         replies = []
         for idx, row in enumerate(reply_rows):
             condition_refs: list[str] = []
@@ -183,7 +349,9 @@ def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conv
             for i, target in enumerate(reply_targets)
         ]
 
-    if row_mode:
+    if semantic_mode:
+        pass
+    elif row_mode:
         speakers = []
         for idx, row in enumerate(speaker_rows):
             display_name = None
@@ -234,21 +402,31 @@ def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conv
         replies=replies,
         speakers=speakers,
         parse_mode=(
-            "row_payload_struct_matrix"
-            if (row_mode and used_struct_matrix)
+            "struct_property_semantic"
+            if semantic_mode
             else (
-            "row_payload_struct_head"
-            if (row_mode and used_struct_head)
-            else ("row_payload" if row_mode else "count_or_value_fallback")
+                "row_payload_struct_matrix"
+                if (row_mode and used_struct_matrix)
+                else (
+                    "row_payload_struct_head"
+                    if (row_mode and used_struct_head)
+                    else ("row_payload" if row_mode else "count_or_value_fallback")
+                )
             )
         ),
         warnings=warnings,
     )
 
 
+def _has_bioconversation_serial_data(export: ExportEntry) -> bool:
+    return export.serial_size >= 8 and export.serial_offset > 0
+
+
 def parse_all_bioconversation_stubs(package: PccPackage) -> list[Conversation]:
     rows: list[Conversation] = []
     for export in package.iter_exports(class_name="BioConversation"):
+        if not _has_bioconversation_serial_data(export):
+            continue
         rows.append(parse_bioconversation_stub(package, export))
     return rows
 
@@ -328,6 +506,8 @@ def summarize_stub_validation(reports: list[dict[str, object]]) -> dict[str, obj
 def inspect_bioconversation_row_payloads(package: PccPackage) -> list[dict[str, object]]:
     report: list[dict[str, object]] = []
     for export in package.iter_exports(class_name="BioConversation"):
+        if not _has_bioconversation_serial_data(export):
+            continue
         profile = package.infer_game_profile()
         schema = get_schema_for_profile(profile)
         tags = extract_bioconversation_key_properties(package.raw_data, package.names, export)

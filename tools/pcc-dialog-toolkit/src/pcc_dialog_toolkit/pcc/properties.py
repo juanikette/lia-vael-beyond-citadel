@@ -6,6 +6,25 @@ from .models import ExportEntry, NameEntry
 from .reader import PccFormatError, _read_i32
 
 
+PROPERTY_TYPE_NAMES = {
+    "ArrayProperty",
+    "BoolProperty",
+    "ByteProperty",
+    "ClassProperty",
+    "ComponentProperty",
+    "DelegateProperty",
+    "FloatProperty",
+    "InterfaceProperty",
+    "IntProperty",
+    "MapProperty",
+    "NameProperty",
+    "ObjectProperty",
+    "StrProperty",
+    "StringRefProperty",
+    "StructProperty",
+}
+
+
 @dataclass(slots=True)
 class PropertyTag:
     name: str
@@ -35,10 +54,6 @@ def _skip_tag_meta(data: bytes, cursor: int, prop_type: str) -> int:
         return cursor + 8
     if prop_type == "ByteProperty":
         return cursor + 8
-    if prop_type == "BoolProperty":
-        return cursor + 1
-    if prop_type == "ArrayProperty":
-        return cursor + 8
     return cursor
 
 
@@ -49,24 +64,6 @@ def parse_property_tags(data: bytes, names: list[NameEntry], *, start_offset: in
 
     tags: list[PropertyTag] = []
     cursor = start_offset
-
-    property_type_names = {
-        "ArrayProperty",
-        "BoolProperty",
-        "ByteProperty",
-        "ClassProperty",
-        "ComponentProperty",
-        "DelegateProperty",
-        "FloatProperty",
-        "InterfaceProperty",
-        "IntProperty",
-        "MapProperty",
-        "NameProperty",
-        "ObjectProperty",
-        "StrProperty",
-        "StringRefProperty",
-        "StructProperty",
-    }
 
     def _is_plausible_tag_start(offset: int) -> bool:
         if offset + 8 > end:
@@ -85,7 +82,7 @@ def parse_property_tags(data: bytes, names: list[NameEntry], *, start_offset: in
         type_b = _read_i32(data, offset + 12)
         type_a_text = names[type_a].text if 0 <= type_a < len(names) else None
         type_b_text = names[type_b].text if 0 <= type_b < len(names) else None
-        return (type_a_text in property_type_names) or (type_b_text in property_type_names)
+        return (type_a_text in PROPERTY_TYPE_NAMES) or (type_b_text in PROPERTY_TYPE_NAMES)
 
     while cursor + 16 <= end:
         try:
@@ -100,7 +97,7 @@ def parse_property_tags(data: bytes, names: list[NameEntry], *, start_offset: in
             type_a_name = names[type_a].text if 0 <= type_a < len(names) else None
             type_b_name = names[type_b].text if 0 <= type_b < len(names) else None
 
-            if type_b_name in property_type_names and type_a_name not in property_type_names:
+            if type_b_name in PROPERTY_TYPE_NAMES and type_a_name not in PROPERTY_TYPE_NAMES:
                 type_index = type_b
                 name_index = name_b
             else:
@@ -131,13 +128,22 @@ def parse_property_tags(data: bytes, names: list[NameEntry], *, start_offset: in
                 prop_size, array_index = array_index, prop_size
 
             cursor = _skip_tag_meta(data, cursor, prop_type)
+            if prop_type == "BoolProperty":
+                one_byte_next = cursor + 1 + prop_size
+                four_byte_next = cursor + 4 + prop_size
+                if _is_plausible_tag_start(four_byte_next) and not _is_plausible_tag_start(one_byte_next):
+                    cursor += 4
+                else:
+                    cursor += 1
             if prop_type == "ArrayProperty":
                 # Real-world PCCs may serialize ArrayProperty with or without the
                 # additional FName metadata. Choose the variant that keeps the
                 # stream aligned with a plausible next tag.
                 no_meta_next = cursor + prop_size
                 f_name_meta_next = (cursor + 8) + prop_size
-                if _is_plausible_tag_start(f_name_meta_next) and not _is_plausible_tag_start(no_meta_next):
+                no_meta_aligned = _is_plausible_tag_start(no_meta_next)
+                f_name_meta_aligned = _is_plausible_tag_start(f_name_meta_next)
+                if f_name_meta_aligned and not no_meta_aligned:
                     cursor += 8
             if cursor > end:
                 raise PccFormatError("Property tag fuera de rango en metadata adicional")
@@ -176,38 +182,78 @@ def extract_bioconversation_key_properties(data: bytes, names: list[NameEntry], 
     }
     key_props = {"EntryList", "ReplyList", "SpeakerList"}
     parse_errors: list[PccFormatError] = []
+    best_key_tags: dict[str, PropertyTag] = {}
+    best_key_score = -10**9
 
-    for delta in (0, 4):
+    def _score_tags(tags: list[PropertyTag]) -> int:
+        score = 0
+        for tag in tags:
+            if tag.name in key_aliases:
+                score += 100
+            if tag.prop_type == "ArrayProperty":
+                score += 5
+                try:
+                    count = _read_i32(data, tag.value_offset)
+                    if count > 0:
+                        score += 20
+                    elif count < 0:
+                        score -= 20
+                except PccFormatError:
+                    score -= 20
+            if tag.prop_type in PROPERTY_TYPE_NAMES:
+                score += 2
+            else:
+                score -= 1
+        return score
+
+    best_score = -10**9
+    best_tags_local: list[PropertyTag] = []
+
+    for delta in (0, 4, 8, 12):
         if export.serial_size <= delta:
             continue
         try:
-            tags = parse_property_tags(
+            tags_candidate = parse_property_tags(
                 data,
                 names,
                 start_offset=export.serial_offset + delta,
                 size=export.serial_size - delta,
                 strict=False,
             )
-            key_tags: list[PropertyTag] = []
-            for tag in tags:
+            sc = _score_tags(tags_candidate)
+            if sc > best_score:
+                best_score = sc
+                best_tags_local = tags_candidate
+
+            key_tags: dict[str, PropertyTag] = {}
+            for tag in tags_candidate:
                 canonical = key_aliases.get(tag.name)
                 if canonical is None:
                     continue
                 tag.name = canonical
                 if tag.name in key_props:
-                    key_tags.append(tag)
-            if key_tags:
-                return key_tags
+                    key_tags[tag.name] = tag
+            if len(key_tags) > len(best_key_tags) or (len(key_tags) == len(best_key_tags) and sc > best_key_score):
+                best_key_tags = key_tags
+                best_key_score = sc
         except PccFormatError as exc:
             parse_errors.append(exc)
 
+    # Fallback scan inspired by LegendaryExplorer's BioConversation fields:
+    # m_StartingList / m_EntryList / m_ReplyList / m_SpeakerList.
+    # We do a bounded fuzzy scan to recover key ArrayProperty tags even when
+    # top-level linear tag parsing does not stay aligned for real-world OT files.
+    fuzzy_tags = _scan_bioconversation_key_properties_fuzzy(data, names, export)
+    for tag in fuzzy_tags:
+        if tag.name not in best_key_tags:
+            best_key_tags[tag.name] = tag
+
+    if best_key_tags:
+        return [best_key_tags[key] for key in ("EntryList", "ReplyList", "SpeakerList") if key in best_key_tags]
+
     if parse_errors:
-        # Fallback scan inspired by LegendaryExplorer's BioConversation fields:
-        # m_StartingList / m_EntryList / m_ReplyList / m_SpeakerList.
-        # We do a bounded fuzzy scan to recover key ArrayProperty tags even when
-        # top-level linear tag parsing does not stay aligned for real-world OT files.
-        return _scan_bioconversation_key_properties_fuzzy(data, names, export)
-    return _scan_bioconversation_key_properties_fuzzy(data, names, export)
+        raise parse_errors[0]
+    return []
 
 
 def _scan_bioconversation_key_properties_fuzzy(
@@ -323,7 +369,39 @@ def _scan_bioconversation_key_properties_fuzzy(
 
 def extract_bioconversation_property_tags(data: bytes, names: list[NameEntry], export: ExportEntry) -> list[PropertyTag]:
     tags: list[PropertyTag] = []
-    for delta in (0, 4):
+
+    def _score(tags_candidate: list[PropertyTag]) -> int:
+        score = 0
+        key_names = {
+            "EntryList",
+            "m_EntryList",
+            "ReplyList",
+            "m_ReplyList",
+            "ReplyListNew",
+            "SpeakerList",
+            "m_SpeakerList",
+            "m_StartingList",
+        }
+        for tag in tags_candidate:
+            if tag.name in key_names:
+                score += 100
+            if tag.prop_type in PROPERTY_TYPE_NAMES:
+                score += 2
+            else:
+                score -= 1
+            if tag.prop_type == "ArrayProperty":
+                try:
+                    count = _read_i32(data, tag.value_offset)
+                    if count > 0:
+                        score += 20
+                    elif count < 0:
+                        score -= 20
+                except PccFormatError:
+                    score -= 20
+        return score
+
+    best_score = -10**9
+    for delta in (0, 4, 8, 12):
         if export.serial_size <= delta:
             continue
         candidate = parse_property_tags(
@@ -333,7 +411,9 @@ def extract_bioconversation_property_tags(data: bytes, names: list[NameEntry], e
             size=export.serial_size - delta,
             strict=False,
         )
-        if len(candidate) > len(tags):
+        sc = _score(candidate)
+        if sc > best_score or (sc == best_score and len(candidate) > len(tags)):
+            best_score = sc
             tags = candidate
     return tags
 
@@ -343,13 +423,36 @@ def read_array_property_count(data: bytes, tag: PropertyTag) -> int:
         raise PccFormatError(f"Propiedad no es ArrayProperty: {tag.name}")
     if tag.size < 4:
         raise PccFormatError(f"ArrayProperty sin longitud valida: {tag.name}")
-    return _read_i32(data, tag.value_offset)
+    count, _ = _resolve_array_count_and_payload_start(data, tag)
+    return count
+
+
+def read_array_property_payload_info(data: bytes, tag: PropertyTag) -> tuple[int, int, int]:
+    count, payload_start = _resolve_array_count_and_payload_start(data, tag)
+    payload_size = max(0, tag.size - (payload_start - tag.value_offset))
+    return count, payload_start, payload_size
+
+
+def _resolve_array_count_and_payload_start(data: bytes, tag: PropertyTag) -> tuple[int, int]:
+    count = _read_i32(data, tag.value_offset)
+    if count >= 0:
+        return count, tag.value_offset + 4
+
+    # Some real-world samples have a shifted array value offset for struct arrays.
+    # Try bounded probes and return both recovered count and payload start.
+    for delta in (4, 8, 12, 16):
+        if delta + 4 > tag.size:
+            break
+        candidate = _read_i32(data, tag.value_offset + delta)
+        if candidate >= 0:
+            return candidate, tag.value_offset + delta + 4
+
+    return count, tag.value_offset + 4
 
 
 def read_array_property_i32_values(data: bytes, tag: PropertyTag) -> list[int]:
-    count = read_array_property_count(data, tag)
-    payload_start = tag.value_offset + 4
-    payload_size = tag.size - 4
+    count, payload_start = _resolve_array_count_and_payload_start(data, tag)
+    payload_size = max(0, tag.size - (payload_start - tag.value_offset))
     expected_size = count * 4
 
     if count < 0:
@@ -386,8 +489,8 @@ def read_array_property_i32_rows(data: bytes, tag: PropertyTag, *, item_width: i
 
 
 def analyze_array_property_layout(data: bytes, tag: PropertyTag) -> ArrayLayoutInfo:
-    count = read_array_property_count(data, tag)
-    payload_size = max(0, tag.size - 4)
+    count, payload_start = _resolve_array_count_and_payload_start(data, tag)
+    payload_size = max(0, tag.size - (payload_start - tag.value_offset))
 
     if count <= 0:
         return ArrayLayoutInfo(
@@ -425,7 +528,7 @@ def read_array_property_struct_head_i32(data: bytes, tag: PropertyTag, *, head_i
         return []
 
     rows: list[list[int]] = []
-    payload_start = tag.value_offset + 4
+    _, payload_start = _resolve_array_count_and_payload_start(data, tag)
     for i in range(info.count):
         item_start = payload_start + (i * stride)
         rows.append([_read_i32(data, item_start + (j * 4)) for j in range(head_i32)])
@@ -446,7 +549,7 @@ def read_array_property_struct_i32_matrix(data: bytes, tag: PropertyTag) -> list
         return []
 
     rows: list[list[int]] = []
-    payload_start = tag.value_offset + 4
+    _, payload_start = _resolve_array_count_and_payload_start(data, tag)
     for i in range(info.count):
         item_start = payload_start + (i * info.bytes_per_item)
         rows.append([_read_i32(data, item_start + (j * 4)) for j in range(width)])
