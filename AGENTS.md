@@ -26,6 +26,11 @@ Use this file as the **operational entry point** for AI agents.
 - Validate dialogue triggers and mission-state conditions carefully.
 - Avoid touching unrelated systems.
 
+## Language Policy
+
+- Use English for all repository-facing content.
+- Documentation, code comments, variable names, function/class identifiers, user-facing strings, error messages, and test descriptions should be written in English.
+
 ## Notion Tracking Workflow
 
 When a Kanban or task board exists in Notion for the active workstream (for example, `PCC Dialog Toolkit - Kanban`), treat it as a required execution log.
