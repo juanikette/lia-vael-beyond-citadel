@@ -6,9 +6,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-from pcc_dialog_toolkit.dialogue.conversation_parser import parse_all_bioconversation_stubs_resilient
-from pcc_dialog_toolkit.pcc import read_pcc
-from pcc_dialog_toolkit.serialize import build_output_payload, validate_output_payload
+from dialogue.conversation_parser import parse_all_bioconversation_stubs_resilient
+from pcc import read_pcc
+from serialize import build_output_payload, validate_output_payload
 
 
 def _u_string(value: str) -> bytes:
@@ -101,7 +101,7 @@ def test_phase5_output_json_is_versioned(tmp_path: Path) -> None:
         [
             sys.executable,
             "-m",
-            "pcc_dialog_toolkit",
+            "cli",
             str(pcc_path),
             "--game",
             "me2",
@@ -128,7 +128,7 @@ def test_phase5_resilient_parser_continues_after_error(monkeypatch, tmp_path: Pa
     pcc_path.write_bytes(_build_pcc_with_bioconv_row_payloads())
     package = read_pcc(pcc_path)
 
-    from pcc_dialog_toolkit.dialogue import conversation_parser as parser_module
+    from dialogue import conversation_parser as parser_module
 
     original = parser_module.parse_bioconversation_stub
 

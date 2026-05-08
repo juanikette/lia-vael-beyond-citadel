@@ -4,7 +4,7 @@ import sys
 
 def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, "-m", "pcc_dialog_toolkit", *args],
+        [sys.executable, "-m", "cli", *args],
         capture_output=True,
         text=True,
         check=False,

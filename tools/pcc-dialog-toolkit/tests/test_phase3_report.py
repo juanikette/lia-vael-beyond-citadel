@@ -11,7 +11,7 @@ import pytest
 lzallright = pytest.importorskip("lzallright")
 LZOCompressor = lzallright.LZOCompressor
 
-from pcc_dialog_toolkit.validation import (
+from validation import (
     build_phase3_batch_report,
     build_phase3_report,
     write_phase3_report,
@@ -183,7 +183,7 @@ def test_phase3_cli_writes_report_file(tmp_path: Path) -> None:
         [
             sys.executable,
             "-m",
-            "pcc_dialog_toolkit",
+            "cli",
             str(pcc_path),
             "--phase3-report",
             str(out),

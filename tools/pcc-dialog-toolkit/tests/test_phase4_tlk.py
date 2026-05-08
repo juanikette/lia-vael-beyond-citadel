@@ -6,8 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from pcc_dialog_toolkit.pcc import read_pcc
-from pcc_dialog_toolkit.tlk import (
+from pcc import read_pcc
+from tlk import (
     build_tlk_resolver,
     find_dlc_tlk_files,
     read_tlk,
@@ -178,7 +178,7 @@ def test_phase4_cli_dump_stub_with_tlk_resolution(tmp_path: Path) -> None:
         [
             sys.executable,
             "-m",
-            "pcc_dialog_toolkit",
+            "cli",
             str(pcc_path),
             "--dump-bioconversation-stub",
             "--tlk",
