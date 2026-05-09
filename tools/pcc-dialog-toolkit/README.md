@@ -81,9 +81,13 @@ If warnings or conversation-level errors are present, it also prints them to the
 
 `--evidence-report` is the generalized variant: provide one or more `--evidence-query` values and it generates the same consolidated TLK + StrRef usage report for any narrative target.
 
-Evidence reports now include two linkage sections:
-- `strref_usages`: resolved hits from parsed `BioConversation` nodes.
-- `raw_export_hits`: fallback hits from raw i32 scans on likely dialogue containers (`*Conversation*`, `*Sequence*`, `*SeqAct*`, `*Plot*`) to expose out-of-subset linkage candidates.
+Evidence reports include tiered linkage sections:
+- `strref_usages`: highest-priority usage rows selected from parsed `BioConversation`, semantic container parsing, or raw container fallback.
+- `semantic_container_usages`: hits recovered from parsed `StringRefProperty` tags when a non-`BioConversation` export exposes the target as a property.
+- `non_bioconversation_usages`: raw container fallback rows for target `StrRef` signatures outside parsed `BioConversation` nodes.
+- `raw_export_hits`: low-level export/offset evidence. When the Go candidate index includes `offsets_by_file`, Python maps those offsets to the smallest containing export instead of rescanning every export payload.
+
+`summary.strref_usage_source` records the selected tier (`bioconversation`, `semantic_container`, or `container_fallback`). Phase 9 uses LegendaryExplorer references for property semantics, especially `PropertyReader.cs` (`StringRefProperty`) and `ConversationScanner.cs` (`BioConversation` `srText` extraction), while keeping the current raw fallback explicit for containers that are not yet semantically decoded.
 
 For performance, evidence reports first prefilter candidate `.pcc` files by raw `StrRef` binary signatures before running package-level parsing.
 

@@ -58,12 +58,15 @@ func Run(files []string, strrefs []int, workers int) []Result {
 					continue
 				}
 				hits := []int{}
+				offsetsByStrref := map[int][]int{}
 				for _, s := range strrefs {
-					if bytesContains(blob, sigs[s]) {
+					offsets := findOffsets(blob, sigs[s], 32)
+					if len(offsets) > 0 {
 						hits = append(hits, s)
+						offsetsByStrref[s] = offsets
 					}
 				}
-				out <- Result{Path: path, Size: info.Size(), ModTimeNs: info.ModTime().UnixNano(), Hits: hits}
+				out <- Result{Path: path, Size: info.Size(), ModTimeNs: info.ModTime().UnixNano(), Hits: hits, Offsets: offsetsByStrref}
 			}
 		}()
 	}
@@ -84,9 +87,10 @@ func Run(files []string, strrefs []int, workers int) []Result {
 	return rows
 }
 
-func bytesContains(haystack []byte, needle []byte) bool {
+func findOffsets(haystack []byte, needle []byte, maxOffsets int) []int {
+	offsets := []int{}
 	if len(needle) == 0 || len(haystack) < len(needle) {
-		return false
+		return offsets
 	}
 	for i := 0; i <= len(haystack)-len(needle); i++ {
 		ok := true
@@ -97,8 +101,11 @@ func bytesContains(haystack []byte, needle []byte) bool {
 			}
 		}
 		if ok {
-			return true
+			offsets = append(offsets, i)
+			if maxOffsets > 0 && len(offsets) >= maxOffsets {
+				return offsets
+			}
 		}
 	}
-	return false
+	return offsets
 }

@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 
 from cli import (
+    _build_semantic_container_usages,
     _build_non_bioconversation_container_usages,
     _merge_strref_usages_with_container_fallback,
     _conversation_lia_vael_context,
@@ -189,8 +190,8 @@ def test_merge_strref_usages_with_container_fallback_uses_container_when_empty()
             },
         }
     ]
-    merged, fallback = _merge_strref_usages_with_container_fallback([], container_rows)
-    assert fallback is True
+    merged, source = _merge_strref_usages_with_container_fallback([], [], container_rows)
+    assert source == "container_fallback"
     assert len(merged) == 1
     assert merged[0]["kind"] == "container"
     assert merged[0]["strref"] == 282425
@@ -198,6 +199,32 @@ def test_merge_strref_usages_with_container_fallback_uses_container_when_empty()
 
 def test_merge_strref_usages_with_container_fallback_keeps_bioconversation_rows() -> None:
     bioconv_rows = [{"kind": "entry", "strref": 123}]
-    merged, fallback = _merge_strref_usages_with_container_fallback(bioconv_rows, [])
-    assert fallback is False
+    merged, source = _merge_strref_usages_with_container_fallback(bioconv_rows, [], [])
+    assert source == "bioconversation"
     assert merged == bioconv_rows
+
+
+def test_build_semantic_container_usages_maps_stringref_properties() -> None:
+    semantic_hits = [
+        {
+            "file": "C:/game/A_LOC_INT.pcc",
+            "export_index": 22,
+            "export_name": "SFXSeqAct_ShowChoiceGUI_0",
+            "class_name": "SFXSeqAct_ShowChoiceGUI",
+            "hits": [
+                {"strref": 282425, "property_name": "m_srParagonPrompt", "value_offset": 144},
+            ],
+        }
+    ]
+    rows = _build_semantic_container_usages(semantic_hits)
+    assert len(rows) == 1
+    assert rows[0]["kind"] == "semantic_container"
+    assert rows[0]["source_container"]["parse_mode"] == "stringref_property"
+    assert rows[0]["property_name"] == "m_srParagonPrompt"
+
+
+def test_merge_strref_usages_with_container_fallback_prefers_semantic_container() -> None:
+    semantic_rows = [{"kind": "semantic_container", "strref": 999}]
+    merged, source = _merge_strref_usages_with_container_fallback([], semantic_rows, [])
+    assert source == "semantic_container"
+    assert merged == semantic_rows

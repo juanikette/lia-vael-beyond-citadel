@@ -216,12 +216,48 @@ def _build_non_bioconversation_container_usages(
     return rows
 
 
+def _build_semantic_container_usages(semantic_export_hits: list[dict[str, object]]) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for export in semantic_export_hits:
+        file_path = export.get("file")
+        export_index = export.get("export_index")
+        export_name = export.get("export_name")
+        class_name = export.get("class_name")
+        for hit in export.get("hits", []):
+            if not isinstance(hit, dict):
+                continue
+            rows.append(
+                {
+                    "kind": "semantic_container",
+                    "conversation_id": None,
+                    "export_index": export_index,
+                    "node_id": None,
+                    "strref": hit.get("strref"),
+                    "line_text": None,
+                    "property_name": hit.get("property_name"),
+                    "value_offset": hit.get("value_offset"),
+                    "source_container": {
+                        "class_name": class_name,
+                        "export_index": export_index,
+                        "export_name": export_name,
+                        "parse_mode": "stringref_property",
+                    },
+                    "file": file_path,
+                }
+            )
+    return rows
+
+
 def _merge_strref_usages_with_container_fallback(
     bioconversation_usages: list[dict[str, object]],
+    semantic_container_usages: list[dict[str, object]],
     non_bio_container_usages: list[dict[str, object]],
-) -> tuple[list[dict[str, object]], bool]:
+) -> tuple[list[dict[str, object]], str]:
     if bioconversation_usages:
-        return bioconversation_usages, False
+        return bioconversation_usages, "bioconversation"
+
+    if semantic_container_usages:
+        return semantic_container_usages, "semantic_container"
 
     merged: list[dict[str, object]] = []
     for row in non_bio_container_usages:
@@ -239,7 +275,7 @@ def _merge_strref_usages_with_container_fallback(
                 "file": row.get("file"),
             }
         )
-    return merged, True
+    return merged, "container_fallback"
 
 
 def _infer_biogame_root_from_tlk(base_tlk: Path) -> Path | None:
@@ -259,6 +295,32 @@ def _load_candidate_index(path: Path) -> list[Path]:
     for item in raw:
         if isinstance(item, str) and item.strip():
             rows.append(Path(item))
+    return rows
+
+
+def _load_candidate_index_offsets(path: Path) -> dict[str, dict[int, list[int]]]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    raw = payload.get("offsets_by_file")
+    if not isinstance(raw, dict):
+        return {}
+
+    rows: dict[str, dict[int, list[int]]] = {}
+    for file_path, hit_map in raw.items():
+        if not isinstance(file_path, str) or not isinstance(hit_map, dict):
+            continue
+        normalized_hits: dict[int, list[int]] = {}
+        for strref, offsets in hit_map.items():
+            try:
+                strref_int = int(strref)
+            except (TypeError, ValueError):
+                continue
+            if not isinstance(offsets, list):
+                continue
+            normalized_offsets = [int(item) for item in offsets if isinstance(item, int)]
+            if normalized_offsets:
+                normalized_hits[strref_int] = normalized_offsets
+        if normalized_hits:
+            rows[file_path] = normalized_hits
     return rows
 
 
@@ -346,10 +408,12 @@ def _build_evidence_report(
     pcc_files = sorted((biogame_root / "CookedPC").glob("*.pcc")) + sorted(dlc_dir.rglob("*.pcc"))
     candidate_pcc_files: list[Path] = []
     pcc_errors: list[dict[str, str]] = []
+    candidate_offsets: dict[str, dict[int, list[int]]] = {}
     candidate_stage_started = time.perf_counter()
     candidate_source = "python_prefilter"
     if candidate_index_path is not None:
         indexed = _load_candidate_index(candidate_index_path)
+        candidate_offsets = _load_candidate_index_offsets(candidate_index_path)
         for item in indexed:
             if item.exists() and item.is_file() and item.suffix.casefold() == ".pcc":
                 candidate_pcc_files.append(item)
@@ -362,6 +426,7 @@ def _build_evidence_report(
         if auto_index_path is not None:
             try:
                 indexed = _load_candidate_index(auto_index_path)
+                candidate_offsets = _load_candidate_index_offsets(auto_index_path)
                 for item in indexed:
                     if item.exists() and item.is_file() and item.suffix.casefold() == ".pcc":
                         candidate_pcc_files.append(item)
@@ -402,6 +467,7 @@ def _build_evidence_report(
 
     usages: list[dict[str, object]] = []
     raw_export_hits: list[dict[str, object]] = []
+    semantic_export_hits: list[dict[str, object]] = []
     conversations_total = 0
 
     parse_stage_started = time.perf_counter()
@@ -413,10 +479,27 @@ def _build_evidence_report(
             continue
 
         if target_strrefs:
-            export_hits = package.scan_exports_for_i32_values(target_strrefs)
+            offsets_for_file = candidate_offsets.get(str(pcc_path))
+            if offsets_for_file:
+                export_hits = package.map_i32_offsets_to_exports(offsets_for_file)
+            else:
+                export_hits = package.scan_exports_for_i32_values(target_strrefs)
             for hit in export_hits:
                 hit["file"] = str(pcc_path)
                 raw_export_hits.append(hit)
+
+            semantic_export_indexes = {
+                int(hit["export_index"])
+                for hit in export_hits
+                if isinstance(hit.get("export_index"), int) and hit.get("class_name") is not None
+            }
+            semantic_hits = package.scan_exports_for_stringref_properties(
+                target_strrefs,
+                export_indexes=semantic_export_indexes,
+            )
+            for hit in semantic_hits:
+                hit["file"] = str(pcc_path)
+                semantic_export_hits.append(hit)
 
         if not package.iter_exports(class_name="BioConversation"):
             continue
@@ -435,9 +518,11 @@ def _build_evidence_report(
     total_elapsed_ms = int((time.perf_counter() - started_at) * 1000)
 
     container_hits = _build_container_hits(raw_export_hits)
+    semantic_container_usages = _build_semantic_container_usages(semantic_export_hits)
     non_bio_container_usages = _build_non_bioconversation_container_usages(raw_export_hits)
-    merged_usages, used_container_fallback = _merge_strref_usages_with_container_fallback(
+    merged_usages, strref_usage_source = _merge_strref_usages_with_container_fallback(
         usages,
+        semantic_container_usages,
         non_bio_container_usages,
     )
 
@@ -455,8 +540,9 @@ def _build_evidence_report(
             "strref_usages": len(merged_usages),
             "raw_export_hits": len(raw_export_hits),
             "container_hits": len(container_hits),
+            "semantic_container_usages": len(semantic_container_usages),
             "non_bioconversation_usages": len(non_bio_container_usages),
-            "strref_usage_source": "container_fallback" if used_container_fallback else "bioconversation",
+            "strref_usage_source": strref_usage_source,
             "pcc_errors": len(pcc_errors),
             "timing_ms": {
                 "tlk_scan": tlk_scan_elapsed_ms,
@@ -469,6 +555,7 @@ def _build_evidence_report(
         "strref_usages": merged_usages,
         "raw_export_hits": raw_export_hits,
         "container_hits": container_hits,
+        "semantic_container_usages": semantic_container_usages,
         "non_bioconversation_usages": non_bio_container_usages,
         "errors": pcc_errors,
     }

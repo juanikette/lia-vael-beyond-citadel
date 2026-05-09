@@ -14,18 +14,19 @@ import (
 )
 
 type report struct {
-	Version           string              `json:"version"`
-	RootBioGame       string              `json:"root_biogame"`
-	TargetStrRef      []int               `json:"target_strrefs"`
-	FilesScanned      int                 `json:"files_scanned"`
-	FilesReused       int                 `json:"files_reused"`
-	FilesRescanned    int                 `json:"files_rescanned"`
-	Candidates        []string            `json:"candidates"`
-	HitsByFile        map[string][]int    `json:"hits_by_file"`
-	Errors            []map[string]string `json:"errors"`
-	GeneratedAt       string              `json:"generated_at"`
-	Entries           []scan.FileEntry    `json:"entries,omitempty"`
-	IncrementalSource string              `json:"incremental_source,omitempty"`
+	Version           string                   `json:"version"`
+	RootBioGame       string                   `json:"root_biogame"`
+	TargetStrRef      []int                    `json:"target_strrefs"`
+	FilesScanned      int                      `json:"files_scanned"`
+	FilesReused       int                      `json:"files_reused"`
+	FilesRescanned    int                      `json:"files_rescanned"`
+	Candidates        []string                 `json:"candidates"`
+	HitsByFile        map[string][]int         `json:"hits_by_file"`
+	OffsetsByFile     map[string]map[int][]int `json:"offsets_by_file,omitempty"`
+	Errors            []map[string]string      `json:"errors"`
+	GeneratedAt       string                   `json:"generated_at"`
+	Entries           []scan.FileEntry         `json:"entries,omitempty"`
+	IncrementalSource string                   `json:"incremental_source,omitempty"`
 }
 
 func main() {
@@ -77,6 +78,7 @@ func main() {
 		FilesRescanned:    len(toScan),
 		Candidates:        []string{},
 		HitsByFile:        map[string][]int{},
+		OffsetsByFile:     map[string]map[int][]int{},
 		Errors:            []map[string]string{},
 		GeneratedAt:       time.Now().UTC().Format(time.RFC3339),
 		Entries:           []scan.FileEntry{},
@@ -89,7 +91,7 @@ func main() {
 	}
 
 	for _, r := range results {
-		entry := scan.FileEntry{Path: r.Path, Size: r.Size, ModTimeNs: r.ModTimeNs, Hits: r.Hits, Error: r.Err}
+		entry := scan.FileEntry{Path: r.Path, Size: r.Size, ModTimeNs: r.ModTimeNs, Hits: r.Hits, Offsets: r.Offsets, Error: r.Err}
 		state[r.Path] = entry
 		if r.Err != "" {
 			rep.Errors = append(rep.Errors, map[string]string{"file": r.Path, "error": r.Err})
@@ -107,6 +109,9 @@ func main() {
 		}
 		rep.Candidates = append(rep.Candidates, item.Path)
 		rep.HitsByFile[item.Path] = item.Hits
+		if len(item.Offsets) > 0 {
+			rep.OffsetsByFile[item.Path] = item.Offsets
+		}
 	}
 
 	sort.Strings(rep.Candidates)
