@@ -14,19 +14,21 @@ import (
 )
 
 type report struct {
-	Version           string                   `json:"version"`
-	RootBioGame       string                   `json:"root_biogame"`
-	TargetStrRef      []int                    `json:"target_strrefs"`
-	FilesScanned      int                      `json:"files_scanned"`
-	FilesReused       int                      `json:"files_reused"`
-	FilesRescanned    int                      `json:"files_rescanned"`
-	Candidates        []string                 `json:"candidates"`
-	HitsByFile        map[string][]int         `json:"hits_by_file"`
-	OffsetsByFile     map[string]map[int][]int `json:"offsets_by_file,omitempty"`
-	Errors            []map[string]string      `json:"errors"`
-	GeneratedAt       string                   `json:"generated_at"`
-	Entries           []scan.FileEntry         `json:"entries,omitempty"`
-	IncrementalSource string                   `json:"incremental_source,omitempty"`
+	Version           string                         `json:"version"`
+	Capabilities      []string                       `json:"capabilities,omitempty"`
+	RootBioGame       string                         `json:"root_biogame"`
+	TargetStrRef      []int                          `json:"target_strrefs"`
+	FilesScanned      int                            `json:"files_scanned"`
+	FilesReused       int                            `json:"files_reused"`
+	FilesRescanned    int                            `json:"files_rescanned"`
+	Candidates        []string                       `json:"candidates"`
+	HitsByFile        map[string][]int               `json:"hits_by_file"`
+	OffsetsByFile     map[string]map[int][]int       `json:"offsets_by_file,omitempty"`
+	ContainersByFile  map[string][]scan.ContainerHit `json:"containers_by_file,omitempty"`
+	Errors            []map[string]string            `json:"errors"`
+	GeneratedAt       string                         `json:"generated_at"`
+	Entries           []scan.FileEntry               `json:"entries,omitempty"`
+	IncrementalSource string                         `json:"incremental_source,omitempty"`
 }
 
 func main() {
@@ -58,7 +60,7 @@ func main() {
 	incrementalSource := ""
 	if *index != "" {
 		loaded, loadErr := scan.LoadIndex(*index)
-		if loadErr == nil {
+		if loadErr == nil && scan.HasCapabilities(loaded, scan.RequiredCapabilities()) {
 			for _, item := range loaded.Entries {
 				previous[item.Path] = item
 			}
@@ -70,7 +72,8 @@ func main() {
 	results := scan.Run(toScan, strrefs, *workers)
 
 	rep := report{
-		Version:           "2",
+		Version:           "3",
+		Capabilities:      scan.RequiredCapabilities(),
 		RootBioGame:       *root,
 		TargetStrRef:      strrefs,
 		FilesScanned:      len(files),
@@ -79,6 +82,7 @@ func main() {
 		Candidates:        []string{},
 		HitsByFile:        map[string][]int{},
 		OffsetsByFile:     map[string]map[int][]int{},
+		ContainersByFile:  map[string][]scan.ContainerHit{},
 		Errors:            []map[string]string{},
 		GeneratedAt:       time.Now().UTC().Format(time.RFC3339),
 		Entries:           []scan.FileEntry{},
@@ -91,7 +95,7 @@ func main() {
 	}
 
 	for _, r := range results {
-		entry := scan.FileEntry{Path: r.Path, Size: r.Size, ModTimeNs: r.ModTimeNs, Hits: r.Hits, Offsets: r.Offsets, Error: r.Err}
+		entry := scan.FileEntry{Path: r.Path, Size: r.Size, ModTimeNs: r.ModTimeNs, Hits: r.Hits, Offsets: r.Offsets, Containers: r.Containers, Error: r.Err}
 		state[r.Path] = entry
 		if r.Err != "" {
 			rep.Errors = append(rep.Errors, map[string]string{"file": r.Path, "error": r.Err})
@@ -111,6 +115,9 @@ func main() {
 		rep.HitsByFile[item.Path] = item.Hits
 		if len(item.Offsets) > 0 {
 			rep.OffsetsByFile[item.Path] = item.Offsets
+		}
+		if len(item.Containers) > 0 {
+			rep.ContainersByFile[item.Path] = item.Containers
 		}
 	}
 

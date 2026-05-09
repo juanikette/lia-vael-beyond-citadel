@@ -68,3 +68,13 @@ func TestSplitChangedFilesReusesAndRescans(t *testing.T) {
 		t.Fatalf("expected changed and new files in toScan: %v", toScan)
 	}
 }
+
+func TestHasCapabilitiesRequiresAllCapabilities(t *testing.T) {
+	rep := &Report{Capabilities: []string{"strref_offsets_v1", "other"}}
+	if !HasCapabilities(rep, []string{"strref_offsets_v1"}) {
+		t.Fatal("expected required capability to be present")
+	}
+	if HasCapabilities(rep, []string{"missing"}) {
+		t.Fatal("expected missing capability to fail")
+	}
+}

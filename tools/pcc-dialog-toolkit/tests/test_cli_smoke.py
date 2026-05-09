@@ -5,6 +5,7 @@ from pathlib import Path
 from cli import (
     _build_semantic_container_usages,
     _build_non_bioconversation_container_usages,
+    _containers_to_export_hits,
     _merge_strref_usages_with_container_fallback,
     _conversation_lia_vael_context,
     _conversation_match_reasons,
@@ -228,3 +229,31 @@ def test_merge_strref_usages_with_container_fallback_prefers_semantic_container(
     merged, source = _merge_strref_usages_with_container_fallback([], semantic_rows, [])
     assert source == "semantic_container"
     assert merged == semantic_rows
+
+
+def test_containers_to_export_hits_groups_go_container_rows() -> None:
+    rows = _containers_to_export_hits(
+        [
+            {
+                "strref": 282425,
+                "local_offset": 12,
+                "export_index": 1,
+                "export_name": "GuidCache",
+                "class_name": "GuidCache",
+                "serial_offset": 100,
+                "serial_size": 50,
+            },
+            {
+                "strref": 282425,
+                "local_offset": 20,
+                "export_index": 1,
+                "export_name": "GuidCache",
+                "class_name": "GuidCache",
+                "serial_offset": 100,
+                "serial_size": 50,
+            },
+        ]
+    )
+    assert len(rows) == 1
+    assert rows[0]["export_name"] == "GuidCache"
+    assert rows[0]["hits"][0]["offsets"] == [12, 20]

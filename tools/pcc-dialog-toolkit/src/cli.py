@@ -324,6 +324,64 @@ def _load_candidate_index_offsets(path: Path) -> dict[str, dict[int, list[int]]]
     return rows
 
 
+def _load_candidate_index_containers(path: Path) -> dict[str, list[dict[str, object]]]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    raw = payload.get("containers_by_file")
+    if not isinstance(raw, dict):
+        return {}
+
+    rows: dict[str, list[dict[str, object]]] = {}
+    for file_path, containers in raw.items():
+        if not isinstance(file_path, str) or not isinstance(containers, list):
+            continue
+        valid = [item for item in containers if isinstance(item, dict)]
+        if valid:
+            rows[file_path] = valid
+    return rows
+
+
+def _containers_to_export_hits(containers: list[dict[str, object]]) -> list[dict[str, object]]:
+    grouped: dict[tuple[int, int | None, str | None, str | None], dict[int, list[int]]] = {}
+    serial_meta: dict[tuple[int, int | None, str | None, str | None], tuple[int | None, int | None]] = {}
+
+    for row in containers:
+        export_index = row.get("export_index")
+        strref = row.get("strref")
+        local_offset = row.get("local_offset")
+        if not isinstance(export_index, int) or not isinstance(strref, int) or not isinstance(local_offset, int):
+            continue
+        export_name = row.get("export_name") if isinstance(row.get("export_name"), str) else None
+        class_name = row.get("class_name") if isinstance(row.get("class_name"), str) else None
+        key = (export_index, row.get("serial_offset") if isinstance(row.get("serial_offset"), int) else None, export_name, class_name)
+        grouped.setdefault(key, {}).setdefault(strref, []).append(local_offset)
+        serial_meta[key] = (
+            row.get("serial_offset") if isinstance(row.get("serial_offset"), int) else None,
+            row.get("serial_size") if isinstance(row.get("serial_size"), int) else None,
+        )
+
+    export_hits: list[dict[str, object]] = []
+    for (export_index, _serial_offset_key, export_name, class_name), hits in sorted(grouped.items()):
+        serial_offset, serial_size = serial_meta[(export_index, _serial_offset_key, export_name, class_name)]
+        export_hits.append(
+            {
+                "export_index": export_index,
+                "export_name": export_name,
+                "class_name": class_name,
+                "serial_offset": serial_offset,
+                "serial_size": serial_size,
+                "hits": [
+                    {
+                        "strref": strref,
+                        "offsets": offsets,
+                        "count": len(offsets),
+                    }
+                    for strref, offsets in sorted(hits.items())
+                ],
+            }
+        )
+    return export_hits
+
+
 def _try_build_candidate_index_with_go(*, biogame_root: Path, target_strrefs: set[int]) -> tuple[Path | None, str | None]:
     if not target_strrefs:
         return None, None
@@ -409,11 +467,13 @@ def _build_evidence_report(
     candidate_pcc_files: list[Path] = []
     pcc_errors: list[dict[str, str]] = []
     candidate_offsets: dict[str, dict[int, list[int]]] = {}
+    candidate_containers: dict[str, list[dict[str, object]]] = {}
     candidate_stage_started = time.perf_counter()
     candidate_source = "python_prefilter"
     if candidate_index_path is not None:
         indexed = _load_candidate_index(candidate_index_path)
         candidate_offsets = _load_candidate_index_offsets(candidate_index_path)
+        candidate_containers = _load_candidate_index_containers(candidate_index_path)
         for item in indexed:
             if item.exists() and item.is_file() and item.suffix.casefold() == ".pcc":
                 candidate_pcc_files.append(item)
@@ -427,6 +487,7 @@ def _build_evidence_report(
             try:
                 indexed = _load_candidate_index(auto_index_path)
                 candidate_offsets = _load_candidate_index_offsets(auto_index_path)
+                candidate_containers = _load_candidate_index_containers(auto_index_path)
                 for item in indexed:
                     if item.exists() and item.is_file() and item.suffix.casefold() == ".pcc":
                         candidate_pcc_files.append(item)
@@ -479,8 +540,11 @@ def _build_evidence_report(
             continue
 
         if target_strrefs:
+            containers_for_file = candidate_containers.get(str(pcc_path))
             offsets_for_file = candidate_offsets.get(str(pcc_path))
-            if offsets_for_file:
+            if containers_for_file:
+                export_hits = _containers_to_export_hits(containers_for_file)
+            elif offsets_for_file:
                 export_hits = package.map_i32_offsets_to_exports(offsets_for_file)
             else:
                 export_hits = package.scan_exports_for_i32_values(target_strrefs)

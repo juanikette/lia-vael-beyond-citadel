@@ -6,6 +6,10 @@ import (
 	"sort"
 )
 
+func RequiredCapabilities() []string {
+	return []string{"strref_offsets_v1", "containers_v1"}
+}
+
 func LoadIndex(path string) (*Report, error) {
 	blob, err := os.ReadFile(path)
 	if err != nil {
@@ -16,6 +20,22 @@ func LoadIndex(path string) (*Report, error) {
 		return nil, err
 	}
 	return &rep, nil
+}
+
+func HasCapabilities(rep *Report, required []string) bool {
+	if rep == nil {
+		return false
+	}
+	available := map[string]struct{}{}
+	for _, capability := range rep.Capabilities {
+		available[capability] = struct{}{}
+	}
+	for _, capability := range required {
+		if _, ok := available[capability]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func SplitChangedFiles(files []string, previous map[string]FileEntry) ([]string, []FileEntry) {

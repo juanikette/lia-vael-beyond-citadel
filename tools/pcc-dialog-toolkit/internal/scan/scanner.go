@@ -1,6 +1,7 @@
 package scan
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"os"
@@ -66,7 +67,8 @@ func Run(files []string, strrefs []int, workers int) []Result {
 						offsetsByStrref[s] = offsets
 					}
 				}
-				out <- Result{Path: path, Size: info.Size(), ModTimeNs: info.ModTime().UnixNano(), Hits: hits, Offsets: offsetsByStrref}
+				containers := mapOffsetsToContainers(blob, offsetsByStrref)
+				out <- Result{Path: path, Size: info.Size(), ModTimeNs: info.ModTime().UnixNano(), Hits: hits, Offsets: offsetsByStrref, Containers: containers}
 			}
 		}()
 	}
@@ -92,20 +94,18 @@ func findOffsets(haystack []byte, needle []byte, maxOffsets int) []int {
 	if len(needle) == 0 || len(haystack) < len(needle) {
 		return offsets
 	}
-	for i := 0; i <= len(haystack)-len(needle); i++ {
-		ok := true
-		for j := 0; j < len(needle); j++ {
-			if haystack[i+j] != needle[j] {
-				ok = false
-				break
-			}
+	searchFrom := 0
+	for searchFrom <= len(haystack)-len(needle) {
+		foundAt := bytes.Index(haystack[searchFrom:], needle)
+		if foundAt < 0 {
+			break
 		}
-		if ok {
-			offsets = append(offsets, i)
-			if maxOffsets > 0 && len(offsets) >= maxOffsets {
-				return offsets
-			}
+		absolute := searchFrom + foundAt
+		offsets = append(offsets, absolute)
+		if maxOffsets > 0 && len(offsets) >= maxOffsets {
+			return offsets
 		}
+		searchFrom = absolute + 1
 	}
 	return offsets
 }
