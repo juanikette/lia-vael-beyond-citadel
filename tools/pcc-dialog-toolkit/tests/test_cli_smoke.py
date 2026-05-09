@@ -2,7 +2,14 @@ import subprocess
 import sys
 from pathlib import Path
 
-from cli import _conversation_lia_vael_context, _conversation_match_reasons, _find_strref_usages, _load_candidate_index
+from cli import (
+    _build_non_bioconversation_container_usages,
+    _merge_strref_usages_with_container_fallback,
+    _conversation_lia_vael_context,
+    _conversation_match_reasons,
+    _find_strref_usages,
+    _load_candidate_index,
+)
 from model.ast import Conversation, EntryNode, ReplyNode, Speaker
 
 
@@ -139,3 +146,58 @@ def test_load_candidate_index_reads_candidates(tmp_path: Path) -> None:
     rows = _load_candidate_index(index_path)
     assert len(rows) == 2
     assert rows[0].name == "a.pcc"
+
+
+def test_build_non_bioconversation_container_usages_maps_hits() -> None:
+    raw_hits = [
+        {
+            "file": "C:/game/A_LOC_INT.pcc",
+            "export_index": 10,
+            "export_name": "SomeContainer",
+            "class_name": None,
+            "hits": [{"strref": 282425, "offsets": [12], "count": 1}],
+        },
+        {
+            "file": "C:/game/B.pcc",
+            "export_index": 11,
+            "export_name": "BioConv",
+            "class_name": "BioConversation",
+            "hits": [{"strref": 123, "offsets": [3], "count": 1}],
+        },
+    ]
+
+    rows = _build_non_bioconversation_container_usages(raw_hits)
+    assert len(rows) == 1
+    assert rows[0]["kind"] == "container"
+    assert rows[0]["strref"] == 282425
+    assert rows[0]["source_container"]["parse_mode"] == "raw_export_signature"
+
+
+def test_merge_strref_usages_with_container_fallback_uses_container_when_empty() -> None:
+    container_rows = [
+        {
+            "kind": "container",
+            "file": "C:/x.pcc",
+            "strref": 282425,
+            "offsets": [9],
+            "count": 1,
+            "source_container": {
+                "class_name": None,
+                "export_index": 10,
+                "export_name": "Tag",
+                "parse_mode": "raw_export_signature",
+            },
+        }
+    ]
+    merged, fallback = _merge_strref_usages_with_container_fallback([], container_rows)
+    assert fallback is True
+    assert len(merged) == 1
+    assert merged[0]["kind"] == "container"
+    assert merged[0]["strref"] == 282425
+
+
+def test_merge_strref_usages_with_container_fallback_keeps_bioconversation_rows() -> None:
+    bioconv_rows = [{"kind": "entry", "strref": 123}]
+    merged, fallback = _merge_strref_usages_with_container_fallback(bioconv_rows, [])
+    assert fallback is False
+    assert merged == bioconv_rows

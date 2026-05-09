@@ -182,6 +182,66 @@ def _build_container_hits(raw_export_hits: list[dict[str, object]]) -> list[dict
     return rows
 
 
+def _build_non_bioconversation_container_usages(
+    raw_export_hits: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for export in raw_export_hits:
+        class_name = export.get("class_name")
+        if isinstance(class_name, str) and class_name == "BioConversation":
+            continue
+
+        file_path = export.get("file")
+        export_index = export.get("export_index")
+        export_name = export.get("export_name")
+        for hit in export.get("hits", []):
+            if not isinstance(hit, dict):
+                continue
+            rows.append(
+                {
+                    "kind": "container",
+                    "file": file_path,
+                    "strref": hit.get("strref"),
+                    "line_text": None,
+                    "offsets": hit.get("offsets", []),
+                    "count": hit.get("count", 0),
+                    "source_container": {
+                        "class_name": class_name,
+                        "export_index": export_index,
+                        "export_name": export_name,
+                        "parse_mode": "raw_export_signature",
+                    },
+                }
+            )
+    return rows
+
+
+def _merge_strref_usages_with_container_fallback(
+    bioconversation_usages: list[dict[str, object]],
+    non_bio_container_usages: list[dict[str, object]],
+) -> tuple[list[dict[str, object]], bool]:
+    if bioconversation_usages:
+        return bioconversation_usages, False
+
+    merged: list[dict[str, object]] = []
+    for row in non_bio_container_usages:
+        merged.append(
+            {
+                "kind": row.get("kind", "container"),
+                "conversation_id": None,
+                "export_index": row.get("source_container", {}).get("export_index"),
+                "node_id": None,
+                "strref": row.get("strref"),
+                "line_text": None,
+                "offsets": row.get("offsets", []),
+                "count": row.get("count", 0),
+                "source_container": row.get("source_container"),
+                "file": row.get("file"),
+            }
+        )
+    return merged, True
+
+
 def _infer_biogame_root_from_tlk(base_tlk: Path) -> Path | None:
     # Expected: <BioGame>/CookedPC/BIOGame_INT.tlk
     cooked = base_tlk.parent
@@ -375,6 +435,11 @@ def _build_evidence_report(
     total_elapsed_ms = int((time.perf_counter() - started_at) * 1000)
 
     container_hits = _build_container_hits(raw_export_hits)
+    non_bio_container_usages = _build_non_bioconversation_container_usages(raw_export_hits)
+    merged_usages, used_container_fallback = _merge_strref_usages_with_container_fallback(
+        usages,
+        non_bio_container_usages,
+    )
 
     return {
         "report": "dialogue-evidence",
@@ -387,9 +452,11 @@ def _build_evidence_report(
             "candidate_pcc_files": len(candidate_pcc_files),
             "candidate_source": candidate_source,
             "conversations_total": conversations_total,
-            "strref_usages": len(usages),
+            "strref_usages": len(merged_usages),
             "raw_export_hits": len(raw_export_hits),
             "container_hits": len(container_hits),
+            "non_bioconversation_usages": len(non_bio_container_usages),
+            "strref_usage_source": "container_fallback" if used_container_fallback else "bioconversation",
             "pcc_errors": len(pcc_errors),
             "timing_ms": {
                 "tlk_scan": tlk_scan_elapsed_ms,
@@ -399,9 +466,10 @@ def _build_evidence_report(
             },
         },
         "tlk_hits": tlk_hits,
-        "strref_usages": usages,
+        "strref_usages": merged_usages,
         "raw_export_hits": raw_export_hits,
         "container_hits": container_hits,
+        "non_bioconversation_usages": non_bio_container_usages,
         "errors": pcc_errors,
     }
 
