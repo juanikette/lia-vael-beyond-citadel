@@ -111,7 +111,7 @@ def parse_property_tags(data: bytes, names: list[NameEntry], *, start_offset: in
                 break
 
             if cursor + 16 > end:
-                raise PccFormatError("Property tag truncado antes de type/size/index")
+                raise PccFormatError("Property tag truncated before type/size/index")
 
             prop_type_index = type_index
             prop_type = _resolve_name(prop_type_index, names)
