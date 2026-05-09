@@ -129,6 +129,8 @@ def test_find_strref_usages_returns_entry_and_reply_matches() -> None:
     assert len(rows) == 2
     assert any(row["kind"] == "entry" and row["strref"] == 123 for row in rows)
     assert any(row["kind"] == "reply" and row["strref"] == 456 for row in rows)
+    assert all("source_container" in row for row in rows)
+    assert all(row["source_container"]["class_name"] == "BioConversation" for row in rows)
 
 
 def test_load_candidate_index_reads_candidates(tmp_path: Path) -> None:

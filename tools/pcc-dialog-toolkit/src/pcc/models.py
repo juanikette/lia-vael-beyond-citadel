@@ -161,7 +161,6 @@ class PccPackage:
         class_name_contains: tuple[str, ...] | None = None,
         max_offsets_per_export: int = 6,
     ) -> list[dict[str, object]]:
-        from .reader import _read_i32
         import struct
 
         if not targets:
@@ -192,14 +191,16 @@ class PccPackage:
                 continue
 
             local_hits: dict[int, list[int]] = {}
-            cursor = start
-            while cursor + 4 <= end:
-                value = _read_i32(self.raw_data, cursor)
-                if value in targets:
+            for value, signature in target_bytes.items():
+                search_from = 0
+                while search_from < len(payload):
+                    found_at = payload.find(signature, search_from)
+                    if found_at < 0:
+                        break
                     offsets = local_hits.setdefault(value, [])
                     if len(offsets) < max_offsets_per_export:
-                        offsets.append(cursor - start)
-                cursor += 4
+                        offsets.append(found_at)
+                    search_from = found_at + 1
 
             if not local_hits:
                 continue

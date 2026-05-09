@@ -123,6 +123,12 @@ def _find_strref_usages(conversations, targets: set[int]) -> list[dict[str, obje
                         "kind": "entry",
                         "conversation_id": conversation.id,
                         "export_index": conversation.export_index,
+                        "source_container": {
+                            "class_name": "BioConversation",
+                            "export_index": conversation.export_index,
+                            "export_name": conversation.id,
+                            "parse_mode": getattr(conversation, "parse_mode", "row_payload"),
+                        },
                         "node_id": entry.id,
                         "strref": entry.line_strref,
                         "line_text": entry.line_text,
@@ -135,11 +141,44 @@ def _find_strref_usages(conversations, targets: set[int]) -> list[dict[str, obje
                         "kind": "reply",
                         "conversation_id": conversation.id,
                         "export_index": conversation.export_index,
+                        "source_container": {
+                            "class_name": "BioConversation",
+                            "export_index": conversation.export_index,
+                            "export_name": conversation.id,
+                            "parse_mode": getattr(conversation, "parse_mode", "row_payload"),
+                        },
                         "node_id": reply.id,
                         "strref": reply.line_strref,
                         "line_text": reply.line_text,
                     }
                 )
+    return rows
+
+
+def _build_container_hits(raw_export_hits: list[dict[str, object]]) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for export in raw_export_hits:
+        file_path = export.get("file")
+        export_index = export.get("export_index")
+        export_name = export.get("export_name")
+        class_name = export.get("class_name")
+        for hit in export.get("hits", []):
+            if not isinstance(hit, dict):
+                continue
+            rows.append(
+                {
+                    "file": file_path,
+                    "strref": hit.get("strref"),
+                    "offsets": hit.get("offsets", []),
+                    "count": hit.get("count", 0),
+                    "source_container": {
+                        "class_name": class_name,
+                        "export_index": export_index,
+                        "export_name": export_name,
+                        "parse_mode": "raw_export_signature",
+                    },
+                }
+            )
     return rows
 
 
@@ -314,10 +353,7 @@ def _build_evidence_report(
             continue
 
         if target_strrefs:
-            export_hits = package.scan_exports_for_i32_values(
-                target_strrefs,
-                class_name_contains=("Conversation", "Sequence", "SeqAct", "Plot"),
-            )
+            export_hits = package.scan_exports_for_i32_values(target_strrefs)
             for hit in export_hits:
                 hit["file"] = str(pcc_path)
                 raw_export_hits.append(hit)
@@ -338,6 +374,8 @@ def _build_evidence_report(
     parse_stage_elapsed_ms = int((time.perf_counter() - parse_stage_started) * 1000)
     total_elapsed_ms = int((time.perf_counter() - started_at) * 1000)
 
+    container_hits = _build_container_hits(raw_export_hits)
+
     return {
         "report": "dialogue-evidence",
         "queries": normalized_queries,
@@ -351,6 +389,7 @@ def _build_evidence_report(
             "conversations_total": conversations_total,
             "strref_usages": len(usages),
             "raw_export_hits": len(raw_export_hits),
+            "container_hits": len(container_hits),
             "pcc_errors": len(pcc_errors),
             "timing_ms": {
                 "tlk_scan": tlk_scan_elapsed_ms,
@@ -362,6 +401,7 @@ def _build_evidence_report(
         "tlk_hits": tlk_hits,
         "strref_usages": usages,
         "raw_export_hits": raw_export_hits,
+        "container_hits": container_hits,
         "errors": pcc_errors,
     }
 
