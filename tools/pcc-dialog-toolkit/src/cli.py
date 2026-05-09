@@ -849,12 +849,18 @@ def main(argv: list[str] | None = None) -> int:
         if not dlc_path.exists() or not dlc_path.is_dir():
             parser.error(f"DLC directory does not exist: {dlc_path}")
 
-        report = _build_evidence_report(
-            base_tlk=tlk_path,
-            dlc_dir=dlc_path,
-            queries=["lia'vael", "liavael", "vael", "lia vael"],
-            candidate_index_path=Path(args.candidate_index) if args.candidate_index else None,
-        )
+        candidate_index_path = Path(args.candidate_index) if args.candidate_index else None
+        if candidate_index_path is not None and not candidate_index_path.is_file():
+            parser.error(f"Candidate index does not exist: {candidate_index_path}")
+        try:
+            report = _build_evidence_report(
+                base_tlk=tlk_path,
+                dlc_dir=dlc_path,
+                queries=["lia'vael", "liavael", "vael", "lia vael"],
+                candidate_index_path=candidate_index_path,
+            )
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            parser.error(f"Evidence report failed: {exc}")
         output_path = Path(args.lia_vael_evidence_report)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(
@@ -886,12 +892,18 @@ def main(argv: list[str] | None = None) -> int:
         if not dlc_path.exists() or not dlc_path.is_dir():
             parser.error(f"DLC directory does not exist: {dlc_path}")
 
-        report = _build_evidence_report(
-            base_tlk=tlk_path,
-            dlc_dir=dlc_path,
-            queries=[str(item) for item in args.evidence_query],
-            candidate_index_path=Path(args.candidate_index) if args.candidate_index else None,
-        )
+        candidate_index_path = Path(args.candidate_index) if args.candidate_index else None
+        if candidate_index_path is not None and not candidate_index_path.is_file():
+            parser.error(f"Candidate index does not exist: {candidate_index_path}")
+        try:
+            report = _build_evidence_report(
+                base_tlk=tlk_path,
+                dlc_dir=dlc_path,
+                queries=[str(item) for item in args.evidence_query],
+                candidate_index_path=candidate_index_path,
+            )
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            parser.error(f"Evidence report failed: {exc}")
         output_path = Path(args.evidence_report)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(

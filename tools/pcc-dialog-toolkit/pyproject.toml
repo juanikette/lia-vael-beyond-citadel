@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pcc-dialog-toolkit"
-version = "0.1.0"
+version = "0.1.1rc0"
 description = "MVP toolkit to extract BioConversation dialogue from PCC files"
 readme = "README.md"
 requires-python = ">=3.11"
