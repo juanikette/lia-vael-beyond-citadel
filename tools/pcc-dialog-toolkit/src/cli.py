@@ -526,6 +526,21 @@ def _build_evidence_report(
                 candidate_pcc_files.append(pcc_path)
     candidate_stage_elapsed_ms = int((time.perf_counter() - candidate_stage_started) * 1000)
 
+    index_container_files = 0
+    index_offset_files = 0
+    if candidate_containers:
+        index_container_files = sum(
+            1
+            for path in candidate_pcc_files
+            if str(path) in candidate_containers and candidate_containers[str(path)]
+        )
+    if candidate_offsets:
+        index_offset_files = sum(
+            1
+            for path in candidate_pcc_files
+            if str(path) in candidate_offsets and candidate_offsets[str(path)]
+        )
+
     usages: list[dict[str, object]] = []
     raw_export_hits: list[dict[str, object]] = []
     semantic_export_hits: list[dict[str, object]] = []
@@ -600,6 +615,8 @@ def _build_evidence_report(
             "pcc_files_scanned": len(pcc_files),
             "candidate_pcc_files": len(candidate_pcc_files),
             "candidate_source": candidate_source,
+            "index_container_files": index_container_files,
+            "index_offset_files": index_offset_files,
             "conversations_total": conversations_total,
             "strref_usages": len(merged_usages),
             "raw_export_hits": len(raw_export_hits),
