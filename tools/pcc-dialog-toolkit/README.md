@@ -148,6 +148,7 @@ python scripts/run_probe_regression.py --tlk "C:/Program Files/EA Games/Mass Eff
 - `docs/phase4-validation-runbook.md` - TLK resolution validation with DLC precedence.
 - `docs/phase5-output-contract-runbook.md` - output schema and resilient CLI contract checks.
 - `docs/phase6-qa-runbook.md` - OT/LE QA execution and LEX cross-check workflow.
+- `docs/phase13-mvp-runbook.md` - production command flow, regression gate, and troubleshooting.
 - `docs/output-schema-v0.1.md` - JSON contract reference.
 - `docs/legendaryexplorer-reference-map.md` - LEX reference mapping by phase.
 - `docs/release-v0.1.0-rc.md` - current RC release notes.
