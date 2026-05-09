@@ -152,3 +152,4 @@ python scripts/run_probe_regression.py --tlk "C:/Program Files/EA Games/Mass Eff
 - `docs/output-schema-v0.1.md` - JSON contract reference.
 - `docs/legendaryexplorer-reference-map.md` - LEX reference mapping by phase.
 - `docs/release-v0.1.0-rc.md` - current RC release notes.
+- `docs/release-v0.1.1-rc-phase13.md` - MVP hardening RC notes.
