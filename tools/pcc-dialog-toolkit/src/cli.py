@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
+import tempfile
+import time
 from pathlib import Path
 
 from dialogue import (
@@ -120,6 +123,12 @@ def _find_strref_usages(conversations, targets: set[int]) -> list[dict[str, obje
                         "kind": "entry",
                         "conversation_id": conversation.id,
                         "export_index": conversation.export_index,
+                        "source_container": {
+                            "class_name": "BioConversation",
+                            "export_index": conversation.export_index,
+                            "export_name": conversation.id,
+                            "parse_mode": getattr(conversation, "parse_mode", "row_payload"),
+                        },
                         "node_id": entry.id,
                         "strref": entry.line_strref,
                         "line_text": entry.line_text,
@@ -132,12 +141,184 @@ def _find_strref_usages(conversations, targets: set[int]) -> list[dict[str, obje
                         "kind": "reply",
                         "conversation_id": conversation.id,
                         "export_index": conversation.export_index,
+                        "source_container": {
+                            "class_name": "BioConversation",
+                            "export_index": conversation.export_index,
+                            "export_name": conversation.id,
+                            "parse_mode": getattr(conversation, "parse_mode", "row_payload"),
+                        },
                         "node_id": reply.id,
                         "strref": reply.line_strref,
                         "line_text": reply.line_text,
                     }
                 )
     return rows
+
+
+def _build_container_hits(raw_export_hits: list[dict[str, object]]) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for export in raw_export_hits:
+        file_path = export.get("file")
+        export_index = export.get("export_index")
+        export_name = export.get("export_name")
+        class_name = export.get("class_name")
+        for hit in export.get("hits", []):
+            if not isinstance(hit, dict):
+                continue
+            rows.append(
+                {
+                    "file": file_path,
+                    "strref": hit.get("strref"),
+                    "offsets": hit.get("offsets", []),
+                    "count": hit.get("count", 0),
+                    "source_container": {
+                        "class_name": class_name,
+                        "export_index": export_index,
+                        "export_name": export_name,
+                        "parse_mode": "raw_export_signature",
+                    },
+                }
+            )
+    return rows
+
+
+def _build_non_bioconversation_container_usages(
+    raw_export_hits: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for export in raw_export_hits:
+        class_name = export.get("class_name")
+        if isinstance(class_name, str) and class_name == "BioConversation":
+            continue
+
+        file_path = export.get("file")
+        export_index = export.get("export_index")
+        export_name = export.get("export_name")
+        for hit in export.get("hits", []):
+            if not isinstance(hit, dict):
+                continue
+            rows.append(
+                {
+                    "kind": "container",
+                    "file": file_path,
+                    "strref": hit.get("strref"),
+                    "line_text": None,
+                    "offsets": hit.get("offsets", []),
+                    "count": hit.get("count", 0),
+                    "source_container": {
+                        "class_name": class_name,
+                        "export_index": export_index,
+                        "export_name": export_name,
+                        "parse_mode": "raw_export_signature",
+                    },
+                }
+            )
+    return rows
+
+
+def _build_semantic_container_usages(semantic_export_hits: list[dict[str, object]]) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for export in semantic_export_hits:
+        file_path = export.get("file")
+        export_index = export.get("export_index")
+        export_name = export.get("export_name")
+        class_name = export.get("class_name")
+        for hit in export.get("hits", []):
+            if not isinstance(hit, dict):
+                continue
+            rows.append(
+                {
+                    "kind": "semantic_container",
+                    "conversation_id": None,
+                    "export_index": export_index,
+                    "node_id": None,
+                    "strref": hit.get("strref"),
+                    "line_text": None,
+                    "property_name": hit.get("property_name"),
+                    "value_offset": hit.get("value_offset"),
+                    "source_container": {
+                        "class_name": class_name,
+                        "export_index": export_index,
+                        "export_name": export_name,
+                        "parse_mode": "stringref_property"
+                        if hit.get("property_type") != "IntProperty"
+                        else "int_property_semantic",
+                    },
+                    "file": file_path,
+                }
+            )
+    return rows
+
+
+def _build_semantic_container_usages_from_raw_hits(raw_export_hits: list[dict[str, object]]) -> list[dict[str, object]]:
+    semantic_classes = {
+        "BioSeqEvt_ConvNode",
+        "BioSeqAct_EndCurrentConvNode",
+        "BioEvtSysTrackVOElements",
+        "BioEvtSysTrackGesture",
+        "BioEvtSysTrackSwitchCamera",
+    }
+    rows: list[dict[str, object]] = []
+    for export in raw_export_hits:
+        class_name = export.get("class_name")
+        if not isinstance(class_name, str) or class_name not in semantic_classes:
+            continue
+        file_path = export.get("file")
+        export_index = export.get("export_index")
+        export_name = export.get("export_name")
+        for hit in export.get("hits", []):
+            if not isinstance(hit, dict):
+                continue
+            rows.append(
+                {
+                    "kind": "semantic_container",
+                    "conversation_id": None,
+                    "export_index": export_index,
+                    "node_id": None,
+                    "strref": hit.get("strref"),
+                    "line_text": None,
+                    "property_name": None,
+                    "value_offset": (hit.get("offsets") or [None])[0],
+                    "source_container": {
+                        "class_name": class_name,
+                        "export_index": export_index,
+                        "export_name": export_name,
+                        "parse_mode": "sequence_dialogue_class_hint",
+                    },
+                    "file": file_path,
+                }
+            )
+    return rows
+
+
+def _merge_strref_usages_with_container_fallback(
+    bioconversation_usages: list[dict[str, object]],
+    semantic_container_usages: list[dict[str, object]],
+    non_bio_container_usages: list[dict[str, object]],
+) -> tuple[list[dict[str, object]], str]:
+    if bioconversation_usages:
+        return bioconversation_usages, "bioconversation"
+
+    if semantic_container_usages:
+        return semantic_container_usages, "semantic_container"
+
+    merged: list[dict[str, object]] = []
+    for row in non_bio_container_usages:
+        merged.append(
+            {
+                "kind": row.get("kind", "container"),
+                "conversation_id": None,
+                "export_index": row.get("source_container", {}).get("export_index"),
+                "node_id": None,
+                "strref": row.get("strref"),
+                "line_text": None,
+                "offsets": row.get("offsets", []),
+                "count": row.get("count", 0),
+                "source_container": row.get("source_container"),
+                "file": row.get("file"),
+            }
+        )
+    return merged, "container_fallback"
 
 
 def _infer_biogame_root_from_tlk(base_tlk: Path) -> Path | None:
@@ -148,11 +329,155 @@ def _infer_biogame_root_from_tlk(base_tlk: Path) -> Path | None:
     return None
 
 
-def _build_evidence_report(*, base_tlk: Path, dlc_dir: Path, queries: list[str]) -> dict[str, object]:
+def _load_candidate_index(path: Path) -> list[Path]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    raw = payload.get("candidates")
+    if not isinstance(raw, list):
+        raise ValueError("Candidate index must contain a 'candidates' array")
+    rows: list[Path] = []
+    for item in raw:
+        if isinstance(item, str) and item.strip():
+            rows.append(Path(item))
+    return rows
+
+
+def _load_candidate_index_offsets(path: Path) -> dict[str, dict[int, list[int]]]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    raw = payload.get("offsets_by_file")
+    if not isinstance(raw, dict):
+        return {}
+
+    rows: dict[str, dict[int, list[int]]] = {}
+    for file_path, hit_map in raw.items():
+        if not isinstance(file_path, str) or not isinstance(hit_map, dict):
+            continue
+        normalized_hits: dict[int, list[int]] = {}
+        for strref, offsets in hit_map.items():
+            try:
+                strref_int = int(strref)
+            except (TypeError, ValueError):
+                continue
+            if not isinstance(offsets, list):
+                continue
+            normalized_offsets = [int(item) for item in offsets if isinstance(item, int)]
+            if normalized_offsets:
+                normalized_hits[strref_int] = normalized_offsets
+        if normalized_hits:
+            rows[file_path] = normalized_hits
+    return rows
+
+
+def _load_candidate_index_containers(path: Path) -> dict[str, list[dict[str, object]]]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    raw = payload.get("containers_by_file")
+    if not isinstance(raw, dict):
+        return {}
+
+    rows: dict[str, list[dict[str, object]]] = {}
+    for file_path, containers in raw.items():
+        if not isinstance(file_path, str) or not isinstance(containers, list):
+            continue
+        valid = [item for item in containers if isinstance(item, dict)]
+        if valid:
+            rows[file_path] = valid
+    return rows
+
+
+def _containers_to_export_hits(containers: list[dict[str, object]]) -> list[dict[str, object]]:
+    grouped: dict[tuple[int, int | None, str | None, str | None], dict[int, list[int]]] = {}
+    serial_meta: dict[tuple[int, int | None, str | None, str | None], tuple[int | None, int | None]] = {}
+
+    for row in containers:
+        export_index = row.get("export_index")
+        strref = row.get("strref")
+        local_offset = row.get("local_offset")
+        if not isinstance(export_index, int) or not isinstance(strref, int) or not isinstance(local_offset, int):
+            continue
+        export_name = row.get("export_name") if isinstance(row.get("export_name"), str) else None
+        class_name = row.get("class_name") if isinstance(row.get("class_name"), str) else None
+        key = (export_index, row.get("serial_offset") if isinstance(row.get("serial_offset"), int) else None, export_name, class_name)
+        grouped.setdefault(key, {}).setdefault(strref, []).append(local_offset)
+        serial_meta[key] = (
+            row.get("serial_offset") if isinstance(row.get("serial_offset"), int) else None,
+            row.get("serial_size") if isinstance(row.get("serial_size"), int) else None,
+        )
+
+    export_hits: list[dict[str, object]] = []
+    for (export_index, _serial_offset_key, export_name, class_name), hits in sorted(grouped.items()):
+        serial_offset, serial_size = serial_meta[(export_index, _serial_offset_key, export_name, class_name)]
+        export_hits.append(
+            {
+                "export_index": export_index,
+                "export_name": export_name,
+                "class_name": class_name,
+                "serial_offset": serial_offset,
+                "serial_size": serial_size,
+                "hits": [
+                    {
+                        "strref": strref,
+                        "offsets": offsets,
+                        "count": len(offsets),
+                    }
+                    for strref, offsets in sorted(hits.items())
+                ],
+            }
+        )
+    return export_hits
+
+
+def _try_build_candidate_index_with_go(*, biogame_root: Path, target_strrefs: set[int]) -> tuple[Path | None, str | None]:
+    if not target_strrefs:
+        return None, None
+
+    project_root = Path(__file__).resolve().parents[1]
+    out_path = Path(tempfile.gettempdir()) / f"pcc_candidates_{int(time.time() * 1000)}.json"
+    cmd = [
+        "go",
+        "run",
+        "./cmd/pcc-scan",
+        "--root-biogame",
+        str(biogame_root),
+        "--out",
+        str(out_path),
+    ]
+    for value in sorted(target_strrefs):
+        cmd.extend(["--strref", str(value)])
+
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=900,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return None, f"go_auto_index_error:{exc}"
+
+    if proc.returncode != 0:
+        stderr = (proc.stderr or "").strip()
+        stdout = (proc.stdout or "").strip()
+        detail = stderr if stderr else stdout
+        return None, f"go_auto_index_failed:exit={proc.returncode}:{detail}"
+    if not out_path.exists() or not out_path.is_file():
+        return None, "go_auto_index_failed:missing_output"
+    return out_path, None
+
+
+def _build_evidence_report(
+    *,
+    base_tlk: Path,
+    dlc_dir: Path,
+    queries: list[str],
+    candidate_index_path: Path | None = None,
+) -> dict[str, object]:
+    started_at = time.perf_counter()
     normalized_queries = [item.strip().casefold() for item in queries if item.strip()]
     if not normalized_queries:
         raise ValueError("At least one non-empty query is required")
 
+    tlk_scan_started = time.perf_counter()
     tlk_paths = [base_tlk] + find_dlc_tlk_files(dlc_dir)
     tlk_hits: list[dict[str, object]] = []
     target_strrefs: set[int] = set()
@@ -175,22 +500,133 @@ def _build_evidence_report(*, base_tlk: Path, dlc_dir: Path, queries: list[str])
                     "text": value,
                 }
             )
+    tlk_scan_elapsed_ms = int((time.perf_counter() - tlk_scan_started) * 1000)
 
     biogame_root = _infer_biogame_root_from_tlk(base_tlk)
     if biogame_root is None:
         raise ValueError("Could not infer BioGame root from --tlk path")
 
     pcc_files = sorted((biogame_root / "CookedPC").glob("*.pcc")) + sorted(dlc_dir.rglob("*.pcc"))
-    usages: list[dict[str, object]] = []
+    candidate_pcc_files: list[Path] = []
     pcc_errors: list[dict[str, str]] = []
+    candidate_offsets: dict[str, dict[int, list[int]]] = {}
+    candidate_containers: dict[str, list[dict[str, object]]] = {}
+    candidate_stage_started = time.perf_counter()
+    candidate_source = "python_prefilter"
+    if candidate_index_path is not None:
+        indexed = _load_candidate_index(candidate_index_path)
+        candidate_offsets = _load_candidate_index_offsets(candidate_index_path)
+        candidate_containers = _load_candidate_index_containers(candidate_index_path)
+        for item in indexed:
+            if item.exists() and item.is_file() and item.suffix.casefold() == ".pcc":
+                candidate_pcc_files.append(item)
+        candidate_source = "index"
+    else:
+        auto_index_path, auto_index_error = _try_build_candidate_index_with_go(
+            biogame_root=biogame_root,
+            target_strrefs=target_strrefs,
+        )
+        if auto_index_path is not None:
+            try:
+                indexed = _load_candidate_index(auto_index_path)
+                candidate_offsets = _load_candidate_index_offsets(auto_index_path)
+                candidate_containers = _load_candidate_index_containers(auto_index_path)
+                for item in indexed:
+                    if item.exists() and item.is_file() and item.suffix.casefold() == ".pcc":
+                        candidate_pcc_files.append(item)
+                candidate_source = "go_auto_index"
+            except (OSError, ValueError, json.JSONDecodeError) as exc:
+                pcc_errors.append(
+                    {
+                        "file": str(auto_index_path),
+                        "stage": "go_auto_index_load",
+                        "error": str(exc),
+                    }
+                )
+        elif auto_index_error is not None:
+            pcc_errors.append(
+                {
+                    "file": str(biogame_root),
+                    "stage": "go_auto_index",
+                    "error": auto_index_error,
+                }
+            )
+
+    if not candidate_pcc_files and candidate_source == "python_prefilter":
+        target_signatures = {
+            strref: strref.to_bytes(4, byteorder="little", signed=True)
+            for strref in sorted(target_strrefs)
+        }
+        for pcc_path in pcc_files:
+            try:
+                blob = pcc_path.read_bytes()
+            except OSError as exc:
+                pcc_errors.append({"file": str(pcc_path), "stage": "read_bytes", "error": str(exc)})
+                continue
+            if not target_signatures:
+                continue
+            if any(signature in blob for signature in target_signatures.values()):
+                candidate_pcc_files.append(pcc_path)
+    candidate_stage_elapsed_ms = int((time.perf_counter() - candidate_stage_started) * 1000)
+
+    index_container_files = 0
+    index_offset_files = 0
+    if candidate_containers:
+        index_container_files = sum(
+            1
+            for path in candidate_pcc_files
+            if str(path) in candidate_containers and candidate_containers[str(path)]
+        )
+    if candidate_offsets:
+        index_offset_files = sum(
+            1
+            for path in candidate_pcc_files
+            if str(path) in candidate_offsets and candidate_offsets[str(path)]
+        )
+
+    usages: list[dict[str, object]] = []
+    raw_export_hits: list[dict[str, object]] = []
+    semantic_export_hits: list[dict[str, object]] = []
     conversations_total = 0
 
-    for pcc_path in pcc_files:
+    parse_stage_started = time.perf_counter()
+    for pcc_path in candidate_pcc_files:
         try:
             package = read_pcc(pcc_path)
         except (PccFormatError, OSError) as exc:
             pcc_errors.append({"file": str(pcc_path), "stage": "read_pcc", "error": str(exc)})
             continue
+
+        if target_strrefs:
+            containers_for_file = candidate_containers.get(str(pcc_path))
+            offsets_for_file = candidate_offsets.get(str(pcc_path))
+            if containers_for_file:
+                export_hits = _containers_to_export_hits(containers_for_file)
+            elif offsets_for_file:
+                export_hits = package.map_i32_offsets_to_exports(offsets_for_file)
+            else:
+                export_hits = package.scan_exports_for_i32_values(target_strrefs)
+            for hit in export_hits:
+                hit["file"] = str(pcc_path)
+                raw_export_hits.append(hit)
+
+            semantic_export_indexes = {
+                int(hit["export_index"])
+                for hit in export_hits
+                if isinstance(hit.get("export_index"), int)
+            }
+            semantic_hits = package.scan_exports_for_stringref_properties(
+                target_strrefs,
+                export_indexes=semantic_export_indexes,
+            )
+            semantic_hits += package.scan_exports_for_int_properties(
+                target_strrefs,
+                export_indexes=semantic_export_indexes,
+                class_name_contains=("bioseq", "bioevt", "sfxseq", "seq"),
+            )
+            for hit in semantic_hits:
+                hit["file"] = str(pcc_path)
+                semantic_export_hits.append(hit)
 
         if not package.iter_exports(class_name="BioConversation"):
             continue
@@ -205,21 +641,53 @@ def _build_evidence_report(*, base_tlk: Path, dlc_dir: Path, queries: list[str])
         for row in rows:
             row["file"] = str(pcc_path)
             usages.append(row)
+    parse_stage_elapsed_ms = int((time.perf_counter() - parse_stage_started) * 1000)
+    total_elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+
+    container_hits = _build_container_hits(raw_export_hits)
+    semantic_container_usages = _build_semantic_container_usages(semantic_export_hits)
+    semantic_container_usages += _build_semantic_container_usages_from_raw_hits(raw_export_hits)
+    non_bio_container_usages = _build_non_bioconversation_container_usages(raw_export_hits)
+    merged_usages, strref_usage_source = _merge_strref_usages_with_container_fallback(
+        usages,
+        semantic_container_usages,
+        non_bio_container_usages,
+    )
 
     return {
-        "report": "lia-vael-evidence",
+        "report": "dialogue-evidence",
+        "evidence_schema_version": "1.0.0",
         "queries": normalized_queries,
         "summary": {
             "tlk_files_scanned": len(tlk_paths),
             "tlk_hits": len(tlk_hits),
             "target_strrefs": len(target_strrefs),
             "pcc_files_scanned": len(pcc_files),
+            "candidate_pcc_files": len(candidate_pcc_files),
+            "candidate_source": candidate_source,
+            "index_container_files": index_container_files,
+            "index_offset_files": index_offset_files,
             "conversations_total": conversations_total,
-            "strref_usages": len(usages),
+            "strref_usages": len(merged_usages),
+            "raw_export_hits": len(raw_export_hits),
+            "container_hits": len(container_hits),
+            "semantic_container_usages": len(semantic_container_usages),
+            "non_bioconversation_usages": len(non_bio_container_usages),
+            "strref_usage_source": strref_usage_source,
             "pcc_errors": len(pcc_errors),
+            "timing_ms": {
+                "tlk_scan": tlk_scan_elapsed_ms,
+                "candidate_selection": candidate_stage_elapsed_ms,
+                "candidate_parse": parse_stage_elapsed_ms,
+                "total": total_elapsed_ms,
+            },
         },
         "tlk_hits": tlk_hits,
-        "strref_usages": usages,
+        "strref_usages": merged_usages,
+        "raw_export_hits": raw_export_hits,
+        "container_hits": container_hits,
+        "semantic_container_usages": semantic_container_usages,
+        "non_bioconversation_usages": non_bio_container_usages,
         "errors": pcc_errors,
     }
 
@@ -296,6 +764,10 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         default=[],
         help="Query used by --evidence-report. Repeatable.",
+    )
+    parser.add_argument(
+        "--candidate-index",
+        help="Optional JSON file with precomputed PCC candidates (for example generated by Go scanner).",
     )
     parser.add_argument(
         "--dump-bioconversation-property-tags",
@@ -377,11 +849,18 @@ def main(argv: list[str] | None = None) -> int:
         if not dlc_path.exists() or not dlc_path.is_dir():
             parser.error(f"DLC directory does not exist: {dlc_path}")
 
-        report = _build_evidence_report(
-            base_tlk=tlk_path,
-            dlc_dir=dlc_path,
-            queries=["lia'vael", "liavael", "vael", "lia vael"],
-        )
+        candidate_index_path = Path(args.candidate_index) if args.candidate_index else None
+        if candidate_index_path is not None and not candidate_index_path.is_file():
+            parser.error(f"Candidate index does not exist: {candidate_index_path}")
+        try:
+            report = _build_evidence_report(
+                base_tlk=tlk_path,
+                dlc_dir=dlc_path,
+                queries=["lia'vael", "liavael", "vael", "lia vael"],
+                candidate_index_path=candidate_index_path,
+            )
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            parser.error(f"Evidence report failed: {exc}")
         output_path = Path(args.lia_vael_evidence_report)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(
@@ -393,7 +872,8 @@ def main(argv: list[str] | None = None) -> int:
             "Evidence summary: "
             f"tlk_hits={report['summary']['tlk_hits']} "
             f"target_strrefs={report['summary']['target_strrefs']} "
-            f"strref_usages={report['summary']['strref_usages']}"
+            f"strref_usages={report['summary']['strref_usages']} "
+            f"raw_export_hits={report['summary']['raw_export_hits']}"
         )
         return 0
 
@@ -412,11 +892,18 @@ def main(argv: list[str] | None = None) -> int:
         if not dlc_path.exists() or not dlc_path.is_dir():
             parser.error(f"DLC directory does not exist: {dlc_path}")
 
-        report = _build_evidence_report(
-            base_tlk=tlk_path,
-            dlc_dir=dlc_path,
-            queries=[str(item) for item in args.evidence_query],
-        )
+        candidate_index_path = Path(args.candidate_index) if args.candidate_index else None
+        if candidate_index_path is not None and not candidate_index_path.is_file():
+            parser.error(f"Candidate index does not exist: {candidate_index_path}")
+        try:
+            report = _build_evidence_report(
+                base_tlk=tlk_path,
+                dlc_dir=dlc_path,
+                queries=[str(item) for item in args.evidence_query],
+                candidate_index_path=candidate_index_path,
+            )
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            parser.error(f"Evidence report failed: {exc}")
         output_path = Path(args.evidence_report)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(
@@ -428,7 +915,8 @@ def main(argv: list[str] | None = None) -> int:
             "Evidence summary: "
             f"tlk_hits={report['summary']['tlk_hits']} "
             f"target_strrefs={report['summary']['target_strrefs']} "
-            f"strref_usages={report['summary']['strref_usages']}"
+            f"strref_usages={report['summary']['strref_usages']} "
+            f"raw_export_hits={report['summary']['raw_export_hits']}"
         )
         return 0
 

@@ -154,6 +154,350 @@ class PccPackage:
             )
         return rows
 
+    def scan_exports_for_i32_values(
+        self,
+        targets: set[int],
+        *,
+        class_name_contains: tuple[str, ...] | None = None,
+        max_offsets_per_export: int = 6,
+    ) -> list[dict[str, object]]:
+        import struct
+
+        if not targets:
+            return []
+
+        target_bytes = {value: struct.pack("<i", value) for value in targets}
+        if not any(blob in self.raw_data for blob in target_bytes.values()):
+            return []
+
+        lowered_filters = tuple(item.casefold() for item in class_name_contains or ())
+        rows: list[dict[str, object]] = []
+
+        for item in self.exports:
+            if item.serial_size <= 0:
+                continue
+
+            if item.class_name is None:
+                continue
+
+            class_name = item.class_name or ""
+            if lowered_filters and not any(token in class_name.casefold() for token in lowered_filters):
+                continue
+
+            start = item.serial_offset
+            end = item.serial_offset + item.serial_size
+            if start < 0 or end > len(self.raw_data) or start >= end:
+                continue
+
+            payload = self.raw_data[start:end]
+            if not any(blob in payload for blob in target_bytes.values()):
+                continue
+
+            local_hits: dict[int, list[int]] = {}
+            for value, signature in target_bytes.items():
+                search_from = 0
+                while search_from < len(payload):
+                    found_at = payload.find(signature, search_from)
+                    if found_at < 0:
+                        break
+                    offsets = local_hits.setdefault(value, [])
+                    if len(offsets) < max_offsets_per_export:
+                        offsets.append(found_at)
+                    search_from = found_at + 1
+
+            if not local_hits:
+                continue
+
+            rows.append(
+                {
+                    "export_index": item.index,
+                    "export_name": item.object_name,
+                    "class_name": item.class_name,
+                    "serial_offset": item.serial_offset,
+                    "serial_size": item.serial_size,
+                    "hits": [
+                        {
+                            "strref": strref,
+                            "offsets": offsets,
+                            "count": len(offsets),
+                        }
+                        for strref, offsets in sorted(local_hits.items())
+                    ],
+                }
+            )
+
+        return rows
+
+    def map_i32_offsets_to_exports(
+        self,
+        offsets_by_strref: dict[int, list[int]],
+        *,
+        max_offsets_per_export: int = 6,
+    ) -> list[dict[str, object]]:
+        if not offsets_by_strref:
+            return []
+
+        by_export: dict[int, dict[int, list[int]]] = {}
+        for strref, offsets in offsets_by_strref.items():
+            for absolute_offset in offsets:
+                best_item = None
+                for item in self.exports:
+                    start = item.serial_offset
+                    end = item.serial_offset + item.serial_size
+                    if start < 0 or end > len(self.raw_data) or start >= end:
+                        continue
+                    if start <= absolute_offset < end:
+                        if best_item is None:
+                            best_item = item
+                            continue
+                        best_has_class = best_item.class_name is not None
+                        item_has_class = item.class_name is not None
+                        if item_has_class and not best_has_class:
+                            best_item = item
+                            continue
+                        if item_has_class == best_has_class and item.serial_size < best_item.serial_size:
+                            best_item = item
+
+                if best_item is None:
+                    continue
+                export_hits = by_export.setdefault(best_item.index, {})
+                local_offsets = export_hits.setdefault(strref, [])
+                if len(local_offsets) < max_offsets_per_export:
+                    local_offsets.append(absolute_offset - best_item.serial_offset)
+
+        rows: list[dict[str, object]] = []
+        exports_by_index = {item.index: item for item in self.exports}
+        for export_index, hits in sorted(by_export.items()):
+            item = exports_by_index.get(export_index)
+            if item is None:
+                continue
+            rows.append(
+                {
+                    "export_index": item.index,
+                    "export_name": item.object_name,
+                    "class_name": item.class_name,
+                    "serial_offset": item.serial_offset,
+                    "serial_size": item.serial_size,
+                    "hits": [
+                        {
+                            "strref": strref,
+                            "offsets": offsets,
+                            "count": len(offsets),
+                        }
+                        for strref, offsets in sorted(hits.items())
+                    ],
+                }
+            )
+        return rows
+
+    def scan_exports_for_stringref_properties(
+        self,
+        targets: set[int],
+        *,
+        class_name_contains: tuple[str, ...] | None = None,
+        export_indexes: set[int] | None = None,
+        max_hits_per_export: int = 12,
+    ) -> list[dict[str, object]]:
+        from .properties import parse_property_tags
+        from .reader import _read_i32, PccFormatError
+        import struct
+
+        if not targets:
+            return []
+
+        target_bytes = {value: struct.pack("<i", value) for value in targets}
+        if not any(blob in self.raw_data for blob in target_bytes.values()):
+            return []
+
+        lowered_filters = tuple(item.casefold() for item in class_name_contains or ())
+        rows: list[dict[str, object]] = []
+
+        for item in self.exports:
+            if item.serial_size <= 0:
+                continue
+
+            if export_indexes is not None and item.index not in export_indexes:
+                continue
+
+            if item.class_name is None:
+                continue
+
+            class_name = item.class_name or ""
+            if lowered_filters and not any(token in class_name.casefold() for token in lowered_filters):
+                continue
+
+            start = item.serial_offset
+            end = item.serial_offset + item.serial_size
+            if start < 0 or end > len(self.raw_data) or start >= end:
+                continue
+
+            payload = self.raw_data[start:end]
+            if not any(blob in payload for blob in target_bytes.values()):
+                continue
+
+            export_hits: list[dict[str, object]] = []
+            seen = set()
+
+            for delta in (0, 4, 8, 12):
+                if item.serial_size <= delta:
+                    continue
+                try:
+                    tags = parse_property_tags(
+                        self.raw_data,
+                        self.names,
+                        start_offset=item.serial_offset + delta,
+                        size=item.serial_size - delta,
+                        strict=False,
+                    )
+                except PccFormatError:
+                    continue
+                if not tags:
+                    continue
+
+                for tag in tags:
+                    if tag.prop_type != "StringRefProperty" or tag.size < 4:
+                        continue
+                    try:
+                        value = _read_i32(self.raw_data, tag.value_offset)
+                    except PccFormatError:
+                        continue
+                    if value not in targets:
+                        continue
+                    key = (tag.name, tag.value_offset, value)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    export_hits.append(
+                        {
+                            "strref": value,
+                            "property_name": tag.name,
+                            "value_offset": tag.value_offset - item.serial_offset,
+                        }
+                    )
+                    if len(export_hits) >= max_hits_per_export:
+                        break
+                if len(export_hits) >= max_hits_per_export:
+                    break
+
+            if not export_hits:
+                continue
+
+            rows.append(
+                {
+                    "export_index": item.index,
+                    "export_name": item.object_name,
+                    "class_name": item.class_name,
+                    "serial_offset": item.serial_offset,
+                    "serial_size": item.serial_size,
+                    "hits": export_hits,
+                }
+            )
+
+        return rows
+
+    def scan_exports_for_int_properties(
+        self,
+        targets: set[int],
+        *,
+        class_name_contains: tuple[str, ...] | None = None,
+        export_indexes: set[int] | None = None,
+        max_hits_per_export: int = 12,
+    ) -> list[dict[str, object]]:
+        from .properties import parse_property_tags
+        from .reader import _read_i32, PccFormatError
+        import struct
+
+        if not targets:
+            return []
+
+        target_bytes = {value: struct.pack("<i", value) for value in targets}
+        if not any(blob in self.raw_data for blob in target_bytes.values()):
+            return []
+
+        lowered_filters = tuple(item.casefold() for item in class_name_contains or ())
+        rows: list[dict[str, object]] = []
+
+        for item in self.exports:
+            if item.serial_size <= 0:
+                continue
+
+            if export_indexes is not None and item.index not in export_indexes:
+                continue
+
+            class_name = item.class_name or ""
+            if lowered_filters and not any(token in class_name.casefold() for token in lowered_filters):
+                continue
+
+            start = item.serial_offset
+            end = item.serial_offset + item.serial_size
+            if start < 0 or end > len(self.raw_data) or start >= end:
+                continue
+
+            payload = self.raw_data[start:end]
+            if not any(blob in payload for blob in target_bytes.values()):
+                continue
+
+            export_hits: list[dict[str, object]] = []
+            seen = set()
+
+            for delta in (0, 4, 8, 12):
+                if item.serial_size <= delta:
+                    continue
+                try:
+                    tags = parse_property_tags(
+                        self.raw_data,
+                        self.names,
+                        start_offset=item.serial_offset + delta,
+                        size=item.serial_size - delta,
+                        strict=False,
+                    )
+                except PccFormatError:
+                    continue
+                if not tags:
+                    continue
+
+                for tag in tags:
+                    if tag.prop_type != "IntProperty" or tag.size < 4:
+                        continue
+                    try:
+                        value = _read_i32(self.raw_data, tag.value_offset)
+                    except PccFormatError:
+                        continue
+                    if value not in targets:
+                        continue
+                    key = (tag.name, tag.value_offset, value)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    export_hits.append(
+                        {
+                            "strref": value,
+                            "property_name": tag.name,
+                            "value_offset": tag.value_offset - item.serial_offset,
+                            "property_type": "IntProperty",
+                        }
+                    )
+                    if len(export_hits) >= max_hits_per_export:
+                        break
+                if len(export_hits) >= max_hits_per_export:
+                    break
+
+            if not export_hits:
+                continue
+
+            rows.append(
+                {
+                    "export_index": item.index,
+                    "export_name": item.object_name,
+                    "class_name": item.class_name,
+                    "serial_offset": item.serial_offset,
+                    "serial_size": item.serial_size,
+                    "hits": export_hits,
+                }
+            )
+
+        return rows
+
     def inspect_bioconversation_properties(self) -> list[dict[str, object]]:
         from .properties import extract_bioconversation_key_properties, read_array_property_count
 

@@ -14,4 +14,5 @@
 
 - `output-schema-v0.1.md` - output JSON contract reference.
 - `legendaryexplorer-reference-map.md` - LEX source map by implementation phase.
-- `release-v0.1.0-rc.md` - current release candidate notes.
+- `release-v0.1.0-rc.md` - Phase 6 OT baseline release candidate notes.
+- `release-v0.1.1-rc-phase13.md` - current MVP hardening release candidate notes.

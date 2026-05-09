@@ -1,7 +1,17 @@
 import subprocess
 import sys
+from pathlib import Path
 
-from cli import _conversation_lia_vael_context, _conversation_match_reasons, _find_strref_usages
+from cli import (
+    _build_semantic_container_usages,
+    _build_non_bioconversation_container_usages,
+    _containers_to_export_hits,
+    _merge_strref_usages_with_container_fallback,
+    _conversation_lia_vael_context,
+    _conversation_match_reasons,
+    _find_strref_usages,
+    _load_candidate_index,
+)
 from model.ast import Conversation, EntryNode, ReplyNode, Speaker
 
 
@@ -128,3 +138,122 @@ def test_find_strref_usages_returns_entry_and_reply_matches() -> None:
     assert len(rows) == 2
     assert any(row["kind"] == "entry" and row["strref"] == 123 for row in rows)
     assert any(row["kind"] == "reply" and row["strref"] == 456 for row in rows)
+    assert all("source_container" in row for row in rows)
+    assert all(row["source_container"]["class_name"] == "BioConversation" for row in rows)
+
+
+def test_load_candidate_index_reads_candidates(tmp_path: Path) -> None:
+    index_path = tmp_path / "candidates.json"
+    index_path.write_text('{"candidates":["C:/a.pcc","C:/b.pcc"]}', encoding="utf-8")
+    rows = _load_candidate_index(index_path)
+    assert len(rows) == 2
+    assert rows[0].name == "a.pcc"
+
+
+def test_build_non_bioconversation_container_usages_maps_hits() -> None:
+    raw_hits = [
+        {
+            "file": "C:/game/A_LOC_INT.pcc",
+            "export_index": 10,
+            "export_name": "SomeContainer",
+            "class_name": None,
+            "hits": [{"strref": 282425, "offsets": [12], "count": 1}],
+        },
+        {
+            "file": "C:/game/B.pcc",
+            "export_index": 11,
+            "export_name": "BioConv",
+            "class_name": "BioConversation",
+            "hits": [{"strref": 123, "offsets": [3], "count": 1}],
+        },
+    ]
+
+    rows = _build_non_bioconversation_container_usages(raw_hits)
+    assert len(rows) == 1
+    assert rows[0]["kind"] == "container"
+    assert rows[0]["strref"] == 282425
+    assert rows[0]["source_container"]["parse_mode"] == "raw_export_signature"
+
+
+def test_merge_strref_usages_with_container_fallback_uses_container_when_empty() -> None:
+    container_rows = [
+        {
+            "kind": "container",
+            "file": "C:/x.pcc",
+            "strref": 282425,
+            "offsets": [9],
+            "count": 1,
+            "source_container": {
+                "class_name": None,
+                "export_index": 10,
+                "export_name": "Tag",
+                "parse_mode": "raw_export_signature",
+            },
+        }
+    ]
+    merged, source = _merge_strref_usages_with_container_fallback([], [], container_rows)
+    assert source == "container_fallback"
+    assert len(merged) == 1
+    assert merged[0]["kind"] == "container"
+    assert merged[0]["strref"] == 282425
+
+
+def test_merge_strref_usages_with_container_fallback_keeps_bioconversation_rows() -> None:
+    bioconv_rows = [{"kind": "entry", "strref": 123}]
+    merged, source = _merge_strref_usages_with_container_fallback(bioconv_rows, [], [])
+    assert source == "bioconversation"
+    assert merged == bioconv_rows
+
+
+def test_build_semantic_container_usages_maps_stringref_properties() -> None:
+    semantic_hits = [
+        {
+            "file": "C:/game/A_LOC_INT.pcc",
+            "export_index": 22,
+            "export_name": "SFXSeqAct_ShowChoiceGUI_0",
+            "class_name": "SFXSeqAct_ShowChoiceGUI",
+            "hits": [
+                {"strref": 282425, "property_name": "m_srParagonPrompt", "value_offset": 144},
+            ],
+        }
+    ]
+    rows = _build_semantic_container_usages(semantic_hits)
+    assert len(rows) == 1
+    assert rows[0]["kind"] == "semantic_container"
+    assert rows[0]["source_container"]["parse_mode"] == "stringref_property"
+    assert rows[0]["property_name"] == "m_srParagonPrompt"
+
+
+def test_merge_strref_usages_with_container_fallback_prefers_semantic_container() -> None:
+    semantic_rows = [{"kind": "semantic_container", "strref": 999}]
+    merged, source = _merge_strref_usages_with_container_fallback([], semantic_rows, [])
+    assert source == "semantic_container"
+    assert merged == semantic_rows
+
+
+def test_containers_to_export_hits_groups_go_container_rows() -> None:
+    rows = _containers_to_export_hits(
+        [
+            {
+                "strref": 282425,
+                "local_offset": 12,
+                "export_index": 1,
+                "export_name": "GuidCache",
+                "class_name": "GuidCache",
+                "serial_offset": 100,
+                "serial_size": 50,
+            },
+            {
+                "strref": 282425,
+                "local_offset": 20,
+                "export_index": 1,
+                "export_name": "GuidCache",
+                "class_name": "GuidCache",
+                "serial_offset": 100,
+                "serial_size": 50,
+            },
+        ]
+    )
+    assert len(rows) == 1
+    assert rows[0]["export_name"] == "GuidCache"
+    assert rows[0]["hits"][0]["offsets"] == [12, 20]
