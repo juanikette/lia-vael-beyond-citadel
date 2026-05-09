@@ -656,6 +656,7 @@ def _build_evidence_report(
 
     return {
         "report": "dialogue-evidence",
+        "evidence_schema_version": "1.0.0",
         "queries": normalized_queries,
         "summary": {
             "tlk_files_scanned": len(tlk_paths),
