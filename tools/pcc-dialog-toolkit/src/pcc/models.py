@@ -395,6 +395,109 @@ class PccPackage:
 
         return rows
 
+    def scan_exports_for_int_properties(
+        self,
+        targets: set[int],
+        *,
+        class_name_contains: tuple[str, ...] | None = None,
+        export_indexes: set[int] | None = None,
+        max_hits_per_export: int = 12,
+    ) -> list[dict[str, object]]:
+        from .properties import parse_property_tags
+        from .reader import _read_i32, PccFormatError
+        import struct
+
+        if not targets:
+            return []
+
+        target_bytes = {value: struct.pack("<i", value) for value in targets}
+        if not any(blob in self.raw_data for blob in target_bytes.values()):
+            return []
+
+        lowered_filters = tuple(item.casefold() for item in class_name_contains or ())
+        rows: list[dict[str, object]] = []
+
+        for item in self.exports:
+            if item.serial_size <= 0:
+                continue
+
+            if export_indexes is not None and item.index not in export_indexes:
+                continue
+
+            class_name = item.class_name or ""
+            if lowered_filters and not any(token in class_name.casefold() for token in lowered_filters):
+                continue
+
+            start = item.serial_offset
+            end = item.serial_offset + item.serial_size
+            if start < 0 or end > len(self.raw_data) or start >= end:
+                continue
+
+            payload = self.raw_data[start:end]
+            if not any(blob in payload for blob in target_bytes.values()):
+                continue
+
+            export_hits: list[dict[str, object]] = []
+            seen = set()
+
+            for delta in (0, 4, 8, 12):
+                if item.serial_size <= delta:
+                    continue
+                try:
+                    tags = parse_property_tags(
+                        self.raw_data,
+                        self.names,
+                        start_offset=item.serial_offset + delta,
+                        size=item.serial_size - delta,
+                        strict=False,
+                    )
+                except PccFormatError:
+                    continue
+                if not tags:
+                    continue
+
+                for tag in tags:
+                    if tag.prop_type != "IntProperty" or tag.size < 4:
+                        continue
+                    try:
+                        value = _read_i32(self.raw_data, tag.value_offset)
+                    except PccFormatError:
+                        continue
+                    if value not in targets:
+                        continue
+                    key = (tag.name, tag.value_offset, value)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    export_hits.append(
+                        {
+                            "strref": value,
+                            "property_name": tag.name,
+                            "value_offset": tag.value_offset - item.serial_offset,
+                            "property_type": "IntProperty",
+                        }
+                    )
+                    if len(export_hits) >= max_hits_per_export:
+                        break
+                if len(export_hits) >= max_hits_per_export:
+                    break
+
+            if not export_hits:
+                continue
+
+            rows.append(
+                {
+                    "export_index": item.index,
+                    "export_name": item.object_name,
+                    "class_name": item.class_name,
+                    "serial_offset": item.serial_offset,
+                    "serial_size": item.serial_size,
+                    "hits": export_hits,
+                }
+            )
+
+        return rows
+
     def inspect_bioconversation_properties(self) -> list[dict[str, object]]:
         from .properties import extract_bioconversation_key_properties, read_array_property_count
 

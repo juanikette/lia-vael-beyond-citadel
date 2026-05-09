@@ -240,7 +240,50 @@ def _build_semantic_container_usages(semantic_export_hits: list[dict[str, object
                         "class_name": class_name,
                         "export_index": export_index,
                         "export_name": export_name,
-                        "parse_mode": "stringref_property",
+                        "parse_mode": "stringref_property"
+                        if hit.get("property_type") != "IntProperty"
+                        else "int_property_semantic",
+                    },
+                    "file": file_path,
+                }
+            )
+    return rows
+
+
+def _build_semantic_container_usages_from_raw_hits(raw_export_hits: list[dict[str, object]]) -> list[dict[str, object]]:
+    semantic_classes = {
+        "BioSeqEvt_ConvNode",
+        "BioSeqAct_EndCurrentConvNode",
+        "BioEvtSysTrackVOElements",
+        "BioEvtSysTrackGesture",
+        "BioEvtSysTrackSwitchCamera",
+    }
+    rows: list[dict[str, object]] = []
+    for export in raw_export_hits:
+        class_name = export.get("class_name")
+        if not isinstance(class_name, str) or class_name not in semantic_classes:
+            continue
+        file_path = export.get("file")
+        export_index = export.get("export_index")
+        export_name = export.get("export_name")
+        for hit in export.get("hits", []):
+            if not isinstance(hit, dict):
+                continue
+            rows.append(
+                {
+                    "kind": "semantic_container",
+                    "conversation_id": None,
+                    "export_index": export_index,
+                    "node_id": None,
+                    "strref": hit.get("strref"),
+                    "line_text": None,
+                    "property_name": None,
+                    "value_offset": (hit.get("offsets") or [None])[0],
+                    "source_container": {
+                        "class_name": class_name,
+                        "export_index": export_index,
+                        "export_name": export_name,
+                        "parse_mode": "sequence_dialogue_class_hint",
                     },
                     "file": file_path,
                 }
@@ -576,6 +619,11 @@ def _build_evidence_report(
                 target_strrefs,
                 export_indexes=semantic_export_indexes,
             )
+            semantic_hits += package.scan_exports_for_int_properties(
+                target_strrefs,
+                export_indexes=semantic_export_indexes,
+                class_name_contains=("bioseq", "bioevt", "sfxseq", "seq"),
+            )
             for hit in semantic_hits:
                 hit["file"] = str(pcc_path)
                 semantic_export_hits.append(hit)
@@ -598,6 +646,7 @@ def _build_evidence_report(
 
     container_hits = _build_container_hits(raw_export_hits)
     semantic_container_usages = _build_semantic_container_usages(semantic_export_hits)
+    semantic_container_usages += _build_semantic_container_usages_from_raw_hits(raw_export_hits)
     non_bio_container_usages = _build_non_bioconversation_container_usages(raw_export_hits)
     merged_usages, strref_usage_source = _merge_strref_usages_with_container_fallback(
         usages,
