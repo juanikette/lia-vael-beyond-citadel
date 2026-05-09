@@ -67,8 +67,8 @@ func Run(files []string, strrefs []int, workers int) []Result {
 						offsetsByStrref[s] = offsets
 					}
 				}
-				containers := mapOffsetsToContainers(blob, offsetsByStrref)
-				out <- Result{Path: path, Size: info.Size(), ModTimeNs: info.ModTime().UnixNano(), Hits: hits, Offsets: offsetsByStrref, Containers: containers}
+				containers, containerStatus := mapOffsetsToContainers(blob, offsetsByStrref)
+				out <- Result{Path: path, Size: info.Size(), ModTimeNs: info.ModTime().UnixNano(), Hits: hits, Offsets: offsetsByStrref, Containers: containers, ContainerStatus: containerStatus}
 			}
 		}()
 	}

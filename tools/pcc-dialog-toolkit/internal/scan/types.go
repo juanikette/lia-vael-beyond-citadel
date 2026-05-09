@@ -1,23 +1,25 @@
 package scan
 
 type Result struct {
-	Path       string
-	Size       int64
-	ModTimeNs  int64
-	Hits       []int
-	Offsets    map[int][]int
-	Containers []ContainerHit
-	Err        string
+	Path            string
+	Size            int64
+	ModTimeNs       int64
+	Hits            []int
+	Offsets         map[int][]int
+	Containers      []ContainerHit
+	ContainerStatus string
+	Err             string
 }
 
 type FileEntry struct {
-	Path       string         `json:"path"`
-	Size       int64          `json:"size"`
-	ModTimeNs  int64          `json:"mod_time_ns"`
-	Hits       []int          `json:"hits"`
-	Offsets    map[int][]int  `json:"offsets,omitempty"`
-	Containers []ContainerHit `json:"containers,omitempty"`
-	Error      string         `json:"error,omitempty"`
+	Path            string         `json:"path"`
+	Size            int64          `json:"size"`
+	ModTimeNs       int64          `json:"mod_time_ns"`
+	Hits            []int          `json:"hits"`
+	Offsets         map[int][]int  `json:"offsets,omitempty"`
+	Containers      []ContainerHit `json:"containers,omitempty"`
+	ContainerStatus string         `json:"container_status,omitempty"`
+	Error           string         `json:"error,omitempty"`
 }
 
 type ContainerHit struct {

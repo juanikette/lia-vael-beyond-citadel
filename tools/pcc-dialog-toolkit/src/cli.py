@@ -570,7 +570,7 @@ def _build_evidence_report(
             semantic_export_indexes = {
                 int(hit["export_index"])
                 for hit in export_hits
-                if isinstance(hit.get("export_index"), int) and hit.get("class_name") is not None
+                if isinstance(hit.get("export_index"), int)
             }
             semantic_hits = package.scan_exports_for_stringref_properties(
                 target_strrefs,

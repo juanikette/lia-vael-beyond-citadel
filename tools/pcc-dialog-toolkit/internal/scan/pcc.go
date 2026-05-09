@@ -16,15 +16,15 @@ const chunkHeaderSize = 16
 const chunkBlockHeaderSize = 8
 
 type pccHeader struct {
-	UnrealVersion int
+	UnrealVersion   int
 	LicenseeVersion int
-	Flags         uint32
-	NameCount     int
-	NameOffset    int
-	ExportCount   int
-	ExportOffset  int
-	ImportCount   int
-	ImportOffset  int
+	Flags           uint32
+	NameCount       int
+	NameOffset      int
+	ExportCount     int
+	ExportOffset    int
+	ImportCount     int
+	ImportOffset    int
 }
 
 type pccImport struct {
@@ -42,40 +42,48 @@ type pccExport struct {
 	ClassName       string
 }
 
-func mapOffsetsToContainers(data []byte, offsets map[int][]int) []ContainerHit {
-	header, err := parsePccHeader(data)
-	if err != nil {
-		return nil
-	}
-	if header.Flags&compressedFlag != 0 {
-		if header.UnrealVersion == 512 && header.LicenseeVersion == 130 {
-			decompressed, decompressErr := decompressME2OT(data)
-			if decompressErr != nil {
-				return nil
-			}
-			data = decompressed
-			header, err = parsePccHeader(data)
-			if err != nil {
-				return nil
-			}
-		} else {
-			return nil
+func mapOffsetsToContainers(data []byte, offsets map[int][]int) ([]ContainerHit, string) {
+	hasOffsets := false
+	for _, rows := range offsets {
+		if len(rows) > 0 {
+			hasOffsets = true
+			break
 		}
 	}
+	if !hasOffsets {
+		return nil, "no_offsets"
+	}
+
+	header, err := parsePccHeader(data)
+	if err != nil {
+		return nil, "parse_header_failed"
+	}
+	compressedFlagStillSet := false
 	if header.Flags&compressedFlag != 0 {
-		return nil
+		decompressed, decompressErr := decompressME2OT(data)
+		if decompressErr != nil {
+			return nil, "decompress_failed"
+		}
+		data = decompressed
+		header, err = parsePccHeader(data)
+		if err != nil {
+			return nil, "parse_header_after_decompress_failed"
+		}
+		if header.Flags&compressedFlag != 0 {
+			compressedFlagStillSet = true
+		}
 	}
 	names, err := parsePccNames(data, header)
 	if err != nil {
-		return nil
+		return nil, "parse_names_failed"
 	}
 	imports, err := parsePccImports(data, header)
 	if err != nil {
-		return nil
+		return nil, "parse_imports_failed"
 	}
 	exports, err := parsePccExports(data, header)
 	if err != nil {
-		return nil
+		return nil, "parse_exports_failed"
 	}
 	resolveExportNames(exports, imports, names)
 
@@ -98,7 +106,13 @@ func mapOffsetsToContainers(data []byte, offsets map[int][]int) []ContainerHit {
 			})
 		}
 	}
-	return hits
+	if len(hits) == 0 {
+		return nil, "no_matching_export"
+	}
+	if compressedFlagStillSet {
+		return hits, "ok_after_forced_decompress"
+	}
+	return hits, "ok"
 }
 
 func decompressME2OT(data []byte) ([]byte, error) {
@@ -246,7 +260,7 @@ func locateCompressionInfoOffsetME2OT(data []byte) (int, error) {
 	if cursor+4 > len(data) {
 		return 0, errors.New("truncated header folder")
 	}
-	cursor += 4 // flags
+	cursor += 4  // flags
 	cursor += 24 // name/export/import pairs
 	cursor += 4  // dependency table offset
 	cursor += 16 // package guid
@@ -307,15 +321,15 @@ func parsePccHeader(data []byte) (pccHeader, error) {
 		return pccHeader{}, errors.New("negative table count")
 	}
 	return pccHeader{
-		UnrealVersion: unrealVersion,
+		UnrealVersion:   unrealVersion,
 		LicenseeVersion: licenseeVersion,
-		Flags:         flags,
-		NameCount:     nameCount,
-		NameOffset:    nameOffset,
-		ExportCount:   exportCount,
-		ExportOffset:  exportOffset,
-		ImportCount:   importCount,
-		ImportOffset:  importOffset,
+		Flags:           flags,
+		NameCount:       nameCount,
+		NameOffset:      nameOffset,
+		ExportCount:     exportCount,
+		ExportOffset:    exportOffset,
+		ImportCount:     importCount,
+		ImportOffset:    importOffset,
 	}, nil
 }
 
@@ -361,17 +375,50 @@ func parsePccExports(data []byte, header pccHeader) ([]pccExport, error) {
 	exports := make([]pccExport, 0, header.ExportCount)
 	cursor := header.ExportOffset
 	for i := 0; i < header.ExportCount; i++ {
-		if cursor+44 > len(data) {
+		if cursor+40 > len(data) {
 			return nil, errors.New("truncated export table")
 		}
+
+		classIndex := readI32(data, cursor)
+		objectNameIndex := readI32(data, cursor+12)
+		serialSize := readI32(data, cursor+32)
+		serialOffset := readI32(data, cursor+36)
+
+		headerLen := 40
+		if header.UnrealVersion <= 512 {
+			if cursor+44 > len(data) {
+				return nil, errors.New("truncated export component map")
+			}
+			componentCount := readI32(data, cursor+40)
+			if componentCount < 0 {
+				return nil, errors.New("negative component map count")
+			}
+			headerLen += 4 + (componentCount * 12)
+		}
+
+		if cursor+headerLen+8 > len(data) {
+			return nil, errors.New("truncated export generation header")
+		}
+		generationCount := readI32(data, cursor+headerLen+4)
+		if generationCount < 0 {
+			return nil, errors.New("negative generation count")
+		}
+		headerLen += 8 + (generationCount * 4) + 16
+		if !(header.UnrealVersion == 491 && header.LicenseeVersion <= 110) {
+			headerLen += 4
+		}
+		if cursor+headerLen > len(data) {
+			return nil, errors.New("truncated export footer")
+		}
+
 		exports = append(exports, pccExport{
 			Index:           i,
-			ClassIndex:      readI32(data, cursor),
-			ObjectNameIndex: readI32(data, cursor+12),
-			SerialSize:      readI32(data, cursor+32),
-			SerialOffset:    readI32(data, cursor+36),
+			ClassIndex:      classIndex,
+			ObjectNameIndex: objectNameIndex,
+			SerialSize:      serialSize,
+			SerialOffset:    serialOffset,
 		})
-		cursor += 68
+		cursor += headerLen
 	}
 	return exports, nil
 }

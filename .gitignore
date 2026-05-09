@@ -184,6 +184,7 @@ opencode.json
 # Local ME2 OT sample assets (large, not for git)
 tools/pcc-dialog-toolkit/test/game-samples/
 tools/pcc-dialog-toolkit/output/
+tools/pcc-dialog-toolkit/reports/
 
 # Local CLI workspace directories
 .gemini/
