@@ -106,6 +106,14 @@ When `--candidate-index` is omitted, the CLI attempts to auto-run the Go scanner
 
 Evidence report summaries include `timing_ms` for `tlk_scan`, `candidate_selection`, `candidate_parse`, and `total`.
 
+Evidence reports now include `evidence_schema_version` (current: `1.0.0`) for contract stability checks.
+
+Phase 12 regression harness (runs all 3 narrative probes and enforces gates):
+
+```bash
+python scripts/run_probe_regression.py --tlk "C:/Program Files/EA Games/Mass Effect 2/BioGame/CookedPC/BIOGame_INT.tlk" --dlc-dir "C:/Program Files/EA Games/Mass Effect 2/BioGame/DLC" --out-dir reports
+```
+
 ## Verification snapshot
 
 - Full Python test suite:
