@@ -14,7 +14,7 @@ dependencies = ["lzallright>=0.2.6"]
 
 [project.optional-dependencies]
 dev = ["pytest>=9.0"]
-gui = ["imgui-bundle>=1.90"]
+gui = ["imgui-bundle>=1.90", "igraph>=0.11"]
 
 [project.scripts]
 pcc_dialog_extract = "cli:main"

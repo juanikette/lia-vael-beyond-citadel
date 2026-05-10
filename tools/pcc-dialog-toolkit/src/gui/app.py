@@ -503,8 +503,38 @@ def _panel_graph_view(state: AppState) -> None:
     half_w = NODE_W / 2
     half_h = NODE_H / 2
 
-    # --- draw edges ---
-    edge_color = imgui.IM_COL32(120, 120, 130, 200)
+    # --- draw edges (bezier curves with category colors) ---
+    default_edge = imgui.IM_COL32(120, 120, 130, 200)
+    category_colors = {
+        "REPLY_CATEGORY_PARAGON_INTERRUPT": imgui.IM_COL32(60, 120, 255, 220),
+        "REPLY_CATEGORY_RENEGADE_INTERRUPT": imgui.IM_COL32(255, 60, 60, 220),
+        "REPLY_CATEGORY_AGREE": imgui.IM_COL32(60, 180, 255, 220),
+        "REPLY_CATEGORY_DISAGREE": imgui.IM_COL32(255, 100, 70, 220),
+        "REPLY_CATEGORY_FRIENDLY": imgui.IM_COL32(30, 30, 140, 220),
+        "REPLY_CATEGORY_HOSTILE": imgui.IM_COL32(140, 30, 30, 220),
+    }
+
+    def _edge_color(reply):
+        return category_colors.get(reply.category or "", default_edge)
+
+    # Start → Entry edges
+    start_fill = imgui.IM_COL32(40, 140, 60, 255)
+    start_stroke = imgui.IM_COL32(80, 200, 120, 255)
+    start_edge = imgui.IM_COL32(60, 160, 80, 220)
+    for start in conv.starts:
+        skey = ("start", start.id)
+        if skey not in state.graph_layout:
+            continue
+        if start.target_entry_id is None:
+            continue
+        ekey = ("entry", start.target_entry_id)
+        if ekey not in state.graph_layout:
+            continue
+        sx, sy = state.graph_layout[skey]
+        ex, ey = state.graph_layout[ekey]
+        _draw_bezier_edge(draw_list, to_screen, sx, sy + half_h, ex, ey - half_h, start_edge)
+
+    # Entry → Reply edges
     for entry in conv.entries:
         ekey = ("entry", entry.id)
         if ekey not in state.graph_layout:
@@ -514,13 +544,12 @@ def _panel_graph_view(state: AppState) -> None:
             rkey = ("reply", rid)
             if rkey not in state.graph_layout:
                 continue
+            reply = reply_map.get(rid)
+            color = _edge_color(reply) if reply else default_edge
             rx, ry = state.graph_layout[rkey]
-            p1 = to_screen(ex, ey + half_h)
-            p2 = to_screen(rx, ry - half_h)
-            draw_list.add_line(p1, p2, edge_color, 2.0)
-            # arrowhead
-            _draw_arrowhead(draw_list, p1, p2, edge_color, 8.0)
+            _draw_bezier_edge(draw_list, to_screen, ex, ey + half_h, rx, ry - half_h, color)
 
+    # Reply → Entry edges
     for reply in conv.replies:
         if reply.target_entry_id is None:
             continue
@@ -530,19 +559,39 @@ def _panel_graph_view(state: AppState) -> None:
             continue
         rx, ry = state.graph_layout[rkey]
         ex, ey = state.graph_layout[ekey]
-        p1 = to_screen(rx, ry + half_h)
-        p2 = to_screen(ex, ey - half_h)
-        draw_list.add_line(p1, p2, edge_color, 2.0)
-        _draw_arrowhead(draw_list, p1, p2, edge_color, 8.0)
+        color = _edge_color(reply)
+        _draw_bezier_edge(draw_list, to_screen, rx, ry + half_h, ex, ey - half_h, color)
+
+    # --- category color map for reply nodes ---
+    reply_category_fills = {
+        "REPLY_CATEGORY_PARAGON_INTERRUPT": imgui.IM_COL32(50, 80, 200, 255),
+        "REPLY_CATEGORY_RENEGADE_INTERRUPT": imgui.IM_COL32(200, 50, 50, 255),
+        "REPLY_CATEGORY_AGREE": imgui.IM_COL32(50, 120, 200, 255),
+        "REPLY_CATEGORY_DISAGREE": imgui.IM_COL32(200, 80, 50, 255),
+        "REPLY_CATEGORY_FRIENDLY": imgui.IM_COL32(20, 20, 100, 255),
+        "REPLY_CATEGORY_HOSTILE": imgui.IM_COL32(100, 20, 20, 255),
+    }
+
+    # --- draw start nodes ---
+    for start in conv.starts:
+        skey = ("start", start.id)
+        if skey not in state.graph_layout:
+            continue
+        nx, ny = state.graph_layout[skey]
+        p_min = to_screen(nx - half_w, ny - half_h)
+        p_max = to_screen(nx + half_w, ny + half_h)
+        draw_list.add_rect_filled(p_min, p_max, start_fill, 6.0)
+        draw_list.add_rect(p_min, p_max, start_stroke, 6.0, 0, 2.0)
+        label = f"Start {start.id}" + (f" -> E{start.target_entry_id}" if start.target_entry_id is not None else "")
+        _draw_node_text(draw_list, p_min, p_max, z, label, "", text_color)
 
     # --- draw nodes ---
     entry_fill = imgui.IM_COL32(40, 80, 140, 255)
     entry_fill_sel = imgui.IM_COL32(60, 120, 200, 255)
-    reply_fill = imgui.IM_COL32(160, 100, 30, 255)
+    reply_fill_default = imgui.IM_COL32(160, 100, 30, 255)
     reply_fill_sel = imgui.IM_COL32(220, 140, 40, 255)
     text_color = imgui.IM_COL32(255, 255, 255, 255)
 
-    # First pass: draw all nodes and check for clicks
     for is_entry in (True, False):
         items = conv.entries if is_entry else conv.replies
         for node in items:
@@ -558,12 +607,12 @@ def _panel_graph_view(state: AppState) -> None:
             if is_entry:
                 fill = entry_fill_sel if sel else entry_fill
             else:
-                fill = reply_fill_sel if sel else reply_fill
+                default = reply_category_fills.get(node.category or "", reply_fill_default)
+                fill = reply_fill_sel if sel else default
 
             draw_list.add_rect_filled(p_min, p_max, fill, 6.0)
             draw_list.add_rect(p_min, p_max, imgui.IM_COL32(200, 200, 210, 255), 6.0, 0, 1.5)
 
-            # text: speaker tag + line text for entries, response text for replies
             if is_entry:
                 speaker = node.speaker_tag or f"Entry {node.id}"
                 line = _truncate(node.line_text, 50) if node.line_text else ""
@@ -579,14 +628,15 @@ def _panel_graph_view(state: AppState) -> None:
                 mx, my = imgui.get_mouse_pos()
                 cx_val, cy_val = to_canvas(mx, my)
                 clicked = False
-                for ntype, items in (("entry", conv.entries), ("reply", conv.replies)):
+                for ntype, items in (("start", conv.starts), ("entry", conv.entries), ("reply", conv.replies)):
                     for node in items:
-                        key = (ntype, node.id)
+                        nid = node.id if hasattr(node, 'line_strref') else node.id
+                        key = (ntype, nid)
                         if key not in state.graph_layout:
                             continue
                         nx, ny = state.graph_layout[key]
                         if abs(cx_val - nx) <= half_w and abs(cy_val - ny) <= half_h:
-                            state.selected_node_id = node.id
+                            state.selected_node_id = nid
                             state.selected_node_type = ntype
                             clicked = True
                             break
@@ -605,6 +655,18 @@ def _panel_graph_view(state: AppState) -> None:
     draw_legend.add_rect_filled(
         imgui.get_cursor_screen_pos(),
         imgui.ImVec2(imgui.get_cursor_screen_pos().x + 14, imgui.get_cursor_screen_pos().y + 14),
+        start_fill, 3.0,
+    )
+    imgui.same_line()
+    imgui.dummy(imgui.ImVec2(20, 14))
+    imgui.same_line()
+    imgui.text("Start")
+    imgui.same_line()
+    imgui.dummy(imgui.ImVec2(16, 14))
+    imgui.same_line()
+    draw_legend.add_rect_filled(
+        imgui.get_cursor_screen_pos(),
+        imgui.ImVec2(imgui.get_cursor_screen_pos().x + 14, imgui.get_cursor_screen_pos().y + 14),
         entry_fill, 3.0,
     )
     imgui.same_line()
@@ -617,7 +679,7 @@ def _panel_graph_view(state: AppState) -> None:
     draw_legend.add_rect_filled(
         imgui.get_cursor_screen_pos(),
         imgui.ImVec2(imgui.get_cursor_screen_pos().x + 14, imgui.get_cursor_screen_pos().y + 14),
-        reply_fill, 3.0,
+        reply_fill_default, 3.0,
     )
     imgui.same_line()
     imgui.dummy(imgui.ImVec2(20, 14))
@@ -651,6 +713,26 @@ def _draw_node_text(
         tx = p_min.x + (w - size.x) / 2
         ty = p_max.y - size.y - 6 * zoom
         dl.add_text(imgui.ImVec2(tx, ty), sec_color, secondary)
+
+
+def _draw_bezier_edge(
+    dl: imgui.ImDrawList,
+    to_screen,
+    x1: float, y1: float,
+    x2: float, y2: float,
+    color: int,
+) -> None:
+    """Draw a cubic bezier edge between two points with LEX-style control points."""
+    dx = abs(x2 - x1)
+    ctrl = max(60.0, min(300.0, dx * 0.5))
+
+    p1 = to_screen(x1, y1)
+    p4 = to_screen(x2, y2)
+    cp1 = to_screen(x1 + ctrl, y1)
+    cp2 = to_screen(x2 - ctrl, y2)
+
+    dl.add_bezier_cubic(p1, cp1, cp2, p4, color, 2.0)
+    _draw_arrowhead(dl, cp2, p4, color, 8.0)
 
 
 def _draw_arrowhead(
