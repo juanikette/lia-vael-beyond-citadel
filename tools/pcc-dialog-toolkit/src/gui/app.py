@@ -71,10 +71,12 @@ def _main_gui(state: AppState) -> None:
     imgui.pop_style_var(2)
 
     # Render content based on active tab
-    if state.active_tab == 2:
-        _dialog_explorer_tab(state, avail_w, content_h, content_y)
+    if state.active_tab == 0:
+        _package_editor_tab(state, avail_w, content_h, content_y)
+    elif state.active_tab == 1:
+        _tlk_editor_tab(state, avail_w, content_h, content_y)
     else:
-        _render_placeholder_center(content_y, content_h)
+        _dialog_explorer_tab(state, avail_w, content_h, content_y)
 
 
 def _render_placeholder_center(y: float, h: float) -> None:
@@ -886,6 +888,170 @@ def _truncate(text: str | None, max_len: int) -> str:
     if len(text) <= max_len:
         return text
     return text[: max_len - 1] + "\u2026"
+
+
+def _package_editor_tab(state: AppState, avail_w: float, avail_h: float, y_off: float) -> None:
+    left_w = avail_w / 3
+    right_w = avail_w - left_w - 4
+
+    # --- class tree ---
+    imgui.set_next_window_size(imgui.ImVec2(left_w, avail_h), imgui.Cond_.once)
+    imgui.set_next_window_pos(imgui.ImVec2(0, y_off), imgui.Cond_.once)
+    imgui.begin("Exports", True)
+
+    if state.pcc_package is None:
+        imgui.text_disabled("No package loaded. Use Dialog Explorer to load a .pcc file.")
+        imgui.end()
+        _render_detail_placeholder(state, y_off, right_w, avail_h)
+        return
+
+    pkg = state.pcc_package
+    by_class = pkg.get_exports_by_class()
+
+    for class_name in sorted(by_class):
+        items = by_class[class_name]
+        flags = imgui.TreeNodeFlags_.open_on_arrow
+        if imgui.tree_node_ex(f"{class_name} ({len(items)})##pkged_{class_name}", flags):
+            for exp in items:
+                label = exp.object_name or f"Export_{exp.index}"
+                clicked = imgui.selectable(f"  [{exp.index}] {label}##pksel_{exp.index}",
+                    state.selected_export_index == exp.index)
+                if clicked:
+                    state.selected_export_index = exp.index
+            imgui.tree_pop()
+
+    imgui.end()
+
+    # --- export detail ---
+    _render_export_detail(state, y_off, right_w, avail_h)
+
+
+def _render_export_detail(state: AppState, y_off: float, w: float, h: float) -> None:
+    imgui.set_next_window_size(imgui.ImVec2(w, h), imgui.Cond_.once)
+    imgui.set_next_window_pos(imgui.ImVec2(avail_w() - w, y_off), imgui.Cond_.once)
+    imgui.begin("Export Detail", True)
+
+    if state.pcc_package is None or state.selected_export_index is None:
+        imgui.text_disabled("Select an export to inspect.")
+        imgui.end()
+        return
+
+    pkg = state.pcc_package
+    exp = pkg.exports[state.selected_export_index]
+    imgui.text(f"Export {exp.index}")
+    imgui.separator()
+    imgui.text(f"Class: {exp.class_name or '(unknown)'}")
+    imgui.text(f"Object: {exp.object_name or '(unnamed)'}")
+    imgui.text(f"Serial: offset={exp.serial_offset}, size={exp.serial_size}")
+    imgui.text(f"Super: {exp.super_index}, Package: {exp.package_ref}")
+
+    imgui.spacing()
+    imgui.separator()
+    imgui.text("Properties:")
+
+    props = pkg.inspect_export_properties(state.selected_export_index)
+    if props is None:
+        imgui.text_disabled("Could not parse properties.")
+    elif not props:
+        imgui.text_disabled("No properties found.")
+    else:
+        child_h = imgui.get_content_region_avail().y - 10
+        imgui.begin_child("##prop_list", imgui.ImVec2(0, child_h), True)
+        for name, value in sorted(props.items()):
+            val_str = _format_prop_value(value)
+            if imgui.tree_node_ex(f"{name}##prop_{name}", imgui.TreeNodeFlags_.leaf):
+                imgui.tree_pop()
+            imgui.same_line()
+            imgui.text_disabled(val_str[:120])
+        imgui.end_child()
+
+    imgui.end()
+
+
+def _format_prop_value(value: object) -> str:
+    if value is None:
+        return "None"
+    if isinstance(value, bool):
+        return str(value)
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        return f"{value:.6f}"
+    if isinstance(value, str):
+        if len(value) > 120:
+            return value[:120] + "..."
+        return value
+    if isinstance(value, list):
+        if not value:
+            return "[]"
+        sample = ", ".join(_format_prop_value(v) for v in value[:5])
+        suffix = f", ... ({len(value)} items)" if len(value) > 5 else ""
+        return f"[{sample}{suffix}]"
+    if isinstance(value, dict):
+        if not value:
+            return "{}"
+        keys = list(value.keys())[:5]
+        sample = ", ".join(f"{k}=..." for k in keys)
+        suffix = f", ... ({len(value)} keys)" if len(value) > 5 else ""
+        return f"{{{sample}{suffix}}}"
+    return repr(value)[:120]
+
+
+def _render_detail_placeholder(state: AppState, y_off: float, w: float, h: float) -> None:
+    imgui.set_next_window_size(imgui.ImVec2(w, h), imgui.Cond_.once)
+    imgui.set_next_window_pos(imgui.ImVec2(avail_w() - w, y_off), imgui.Cond_.once)
+    imgui.begin("Export Detail", True)
+    imgui.text_disabled("Select an export to inspect.")
+    imgui.end()
+
+
+def avail_w() -> float:
+    return imgui.get_main_viewport().size.x
+
+
+def _tlk_editor_tab(state: AppState, avail_w: float, avail_h: float, y_off: float) -> None:
+    imgui.set_next_window_size(imgui.ImVec2(avail_w, avail_h), imgui.Cond_.once)
+    imgui.set_next_window_pos(imgui.ImVec2(0, y_off), imgui.Cond_.once)
+    imgui.begin("TLK Editor", True)
+
+    if state.tlk_resolver is None:
+        imgui.text_disabled("No TLK loaded. Set a TLK file in the Dialog Explorer tab first.")
+        imgui.end()
+        return
+
+    resolver = state.tlk_resolver
+
+    # --- search ---
+    _, state.tlk_search = imgui.input_text("##tlk_search", state.tlk_search, 64)
+    search_lower = state.tlk_search.strip().casefold()
+    imgui.same_line()
+    imgui.text_disabled(f"({resolver.total_unique_entries} entries)")
+
+    imgui.separator()
+
+    # --- table ---
+    table_flags = (
+        imgui.TableFlags_.row_bg
+        | imgui.TableFlags_.scroll_y
+        | imgui.TableFlags_.sizing_stretch_prop
+    )
+    col_flags = imgui.TableColumnFlags_.width_fixed
+    if imgui.begin_table("##tlk_table", 2, table_flags):
+        imgui.table_setup_column("StringID", col_flags, 80)
+        imgui.table_setup_column("Text", imgui.TableColumnFlags_.width_stretch)
+
+        for string_id, text, src in resolver.iter_all_entries():
+            if search_lower and search_lower not in text.casefold() and search_lower not in str(string_id):
+                continue
+            imgui.table_next_row()
+            imgui.table_set_column_index(0)
+            imgui.text(str(string_id))
+            imgui.table_set_column_index(1)
+            imgui.text_wrapped(text)
+
+        imgui.end_table()
+
+    imgui.end()
 
 
 def _build_runner_params(state: AppState) -> hi.RunnerParams:

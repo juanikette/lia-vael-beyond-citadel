@@ -26,6 +26,7 @@ class AppState:
     selected_conversation_index: int | None = None
     selected_node_id: int | None = None
     selected_node_type: str | None = None  # "entry" or "reply"
+    selected_export_index: int | None = None
 
     # ---- graph layout (populated by layout engine) ----
     graph_layout: dict[int, tuple[float, float]] = field(default_factory=dict)
@@ -39,6 +40,7 @@ class AppState:
 
     # ---- UI state ----
     conv_filter: str = ""
+    tlk_search: str = ""
     show_about: bool = False
     pending_file_open: bool = False
     active_tab: int = 2  # 0=Package Editor, 1=TLK Editor, 2=Dialog Explorer
@@ -57,4 +59,5 @@ class AppState:
         self.selected_conversation_index = None
         self.selected_node_id = None
         self.selected_node_type = None
+        self.selected_export_index = None
         self.graph_layout.clear()
