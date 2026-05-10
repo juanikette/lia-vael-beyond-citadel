@@ -59,6 +59,7 @@ Every agent session follows this protocol:
 - Keep modifications isolated and reversible where possible.
 - Validate dialogue triggers and mission-state conditions carefully.
 - Avoid touching unrelated systems.
+- **Always consult the LegendaryExplorer repository** when implementing toolkit features. Use GitHub search (`github_search_code` / `github_get_file_contents`) against `github.com/ME3Tweaks/LegendaryExplorer` to understand how the official tool handles PCC parsing, TLK resolution, dialogue editing, and graph rendering. LEX is the reference implementation — match its behavior unless DESIGN.md specifies otherwise.
 
 ## Language Policy
 
