@@ -1,5 +1,8 @@
 # Repo-level ignores.
 
+# Agent session state (local only)
+.opencode/
+
 # Secrets / local config
 .secrets/
 opencode.json
