@@ -192,6 +192,38 @@ tools/pcc-toolkit-v2/
 
 ---
 
+## 3.1 Dependencies
+
+### Go (`core/`)
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `github.com/anchore/go-lzo` | v0.1.0 | LZO1X decompression for ME2 OT compressed packages |
+| `gonum.org/v1/gonum/graph` | latest | Graph representation and algorithms for Sugiyama layout |
+| `encoding/json` | stdlib | JSON serialization (all subcommand output) |
+| `flag` | stdlib | CLI flag parsing for subcommand dispatch |
+
+No other external dependencies. The core binary is self-contained except for `go-lzo` and `gonum/graph`.
+
+### Python CLI (`cli/`)
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `typer` | >=0.15 | CLI framework with subcommand groups, help text, shell completion |
+| `rich` | >=13 | Terminal output formatting (tables, colors, progress bars) |
+
+Stdlib only otherwise: `subprocess`, `json`, `pathlib`.
+
+### Python GUI (`gui/`)
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `imgui-bundle` | >=1.90 | Dear ImGui bindings + HelloImGui for window/docking/layout |
+
+Also depends on CLI packages (`typer`, `rich`). No other GUI dependencies. Graph layout is done in Go core — the GUI only renders positions from `layout-graph` output. No `igraph`, no `pygraphviz`, no `networkx`.
+
+---
+
 ## 4. Go Core Specification (`core/`)
 
 ### 4.1 Binary Interface
