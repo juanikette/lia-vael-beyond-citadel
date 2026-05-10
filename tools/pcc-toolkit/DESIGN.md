@@ -219,8 +219,16 @@ Stdlib only otherwise: `subprocess`, `json`, `pathlib`.
 | Package | Version | Purpose |
 |---------|---------|---------|
 | `imgui-bundle` | >=1.90 | Dear ImGui bindings + HelloImGui for window/docking/layout |
+| `python-igraph` | >=0.11 | **Dev only** — layout oracle for golden file generation and regression testing. Not a runtime dependency. |
 
-Also depends on CLI packages (`typer`, `rich`). No other GUI dependencies. Graph layout is done in Go core — the GUI only renders positions from `layout-graph` output. No `igraph`, no `pygraphviz`, no `networkx`.
+Also depends on CLI packages (`typer`, `rich`). No other GUI runtime dependencies. Graph layout in production is done in Go core — the GUI only renders positions from `layout-graph` output.
+
+### Dev-only dependencies (not in production)
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `python-igraph` | >=0.11 | Layout oracle: generate golden layouts, validate Go Sugiyama output, experiment with alternative algorithms. Used during development and regression testing, never at runtime. |
+| `pytest` | >=9.0 | Test runner |
 
 ---
 
@@ -339,7 +347,21 @@ Takes a PCC file (internally calls parse-conversations), then computes 2D positi
 
 GUI calls this when a conversation is selected. No layout logic in Python.
 
-Uses a pure Go graph layout library (e.g., `gonum/graph` with custom Sugiyama) to avoid depending on igraph. (igraph is C-based and heavy for a Go binary.)
+Uses a pure Go graph layout implementation to avoid depending on igraph at runtime. The layout engine is implemented iteratively:
+
+**v1 — Barycenter heuristic:**
+- Simple layer assignment (BFS from starts and replies)
+- Barycenter crossing minimization
+- Basic horizontal spacing
+- Straight-line edges
+
+**v2 — Full Sugiyama:**
+- Dummy nodes for long edges
+- Proper edge routing with bend points
+- Cycle removal heuristic
+- Weighted node ordering
+
+`python-igraph` is kept as a **development oracle**: during implementation, Go output is compared against igraph's `layout_sugiyama()` to validate layering quality, crossing minimization, and coordinate placement. igraph generates golden layouts committed to `tests/golden/graph/`. It is not a runtime dependency.
 
 #### `parse-tlk` — Parse a TLK file
 
@@ -1114,12 +1136,12 @@ tests/golden/
 - `--game` flag exists in CLI but only `me2` is validated
 - LE support will be a separate milestone after v2 is stable
 
-### 9.7 Why Go graph layout instead of igraph?
+### 9.7 Why Go-native graph layout instead of igraph at runtime?
 
-- `igraph` is a C library with Python bindings — heavy dependency for just Sugiyama
-- Implementing Sugiyama in Go is ~300 lines
-- Keeps the core binary self-contained (no C dependencies except LZO)
-- Alternative: use `gonum/graph` for graph representation + custom layout
+- `igraph` is a C library with Python bindings — architecturally wrong when the AST and graph model live in Go. Keeping layout in Python would create model duplication, intermediate format drift, and cross-language debugging friction.
+- Conversation graph layout is **domain logic**: it understands starts, entries, replies, categories, and branch semantics. It belongs in the core.
+- `python-igraph` remains as a **development oracle**: used during implementation to validate Go output against igraph's Sugiyama, generate golden layouts, and experiment with alternative algorithms. Not a runtime dependency.
+- Implementing Sugiyama in Go is iterative: v1 = barycenter heuristic, v2 = full Sugiyama with dummy nodes. Each step validated against igraph golden output.
 
 ---
 
