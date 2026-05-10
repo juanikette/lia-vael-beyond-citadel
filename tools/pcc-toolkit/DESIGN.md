@@ -172,9 +172,14 @@ tools/pcc-toolkit-v2/
 │   ├── test_core_contract.py        # Go core output contract tests
 │   ├── test_cli.py                  # CLI dispatch tests
 │   ├── test_gui.py                  # GUI module tests (no window)
-│   └── fixtures/
-│       ├── pcc_builder.py           # Build synthetic PCC bytes
-│       └── tlk_builder.py           # Build synthetic TLK bytes
+│   ├── fixtures/
+│   │   ├── pcc_builder.py           # Build synthetic PCC bytes
+│   │   └── tlk_builder.py           # Build synthetic TLK bytes
+│   └── golden/                      # Known-good output files for regression
+│       ├── conversation/            # parse-conversations output
+│       ├── tlk/                     # parse-tlk / resolve-tlk output
+│       ├── evidence/                # scan-evidence output
+│       └── graph/                   # layout-graph output
 │
 ├── samples/                         # Real game files (gitignored)
 │   └── README.md
@@ -909,6 +914,43 @@ Note: All hit-testing is viewport math (screen → world transform) and stays in
 - Build v2 feature → validate output matches old toolkit → replace → move to next
 - Each feature is independently testable
 - **All validation against ME2 OT files only** (no LE/ME3 test data)
+- **Golden files protect against regressions during ports**: every capability has a known-good output file in `tests/golden/` that serves as the structural contract
+
+### Golden Test Strategy
+
+Golden files are **known-good JSON outputs** produced by the old toolkit (or the first correct v2 implementation) against a fixed set of ME2 OT input files. They live in `tests/golden/` and are committed to the repository.
+
+```
+tests/golden/
+├── conversation/
+│   ├── BioD_CitHub_300Dialogue_LOC_INT.json    # parse-conversations output
+│   └── BioD_CitHub_LOC_INT.json
+├── tlk/
+│   ├── BIOGame_INT_strref_12345.json           # parse-tlk --strref output
+│   └── BIOGame_INT_dump_first_100.json         # parse-tlk --dump-all (first 100)
+├── evidence/
+│   ├── rally_the_crowd.json                    # scan-evidence "rally the crowd"
+│   ├── tali_intimacy.json                      # scan-evidence "tali intimacy"
+│   └── miss_vas_normandy.json                  # scan-evidence "Miss vas Normandy"
+└── graph/
+    ├── BioD_CitHub_300Dialogue_sugiyama.json   # layout-graph --algorithm sugiyama
+    └── BioD_CitHub_300Dialogue_tree.json       # layout-graph --algorithm tree
+```
+
+**Workflow during porting:**
+
+1. Run old toolkit against known input → save output as golden file
+2. Port feature to Go core
+3. Run Go core against same input
+4. Compare output to golden file (structural equivalence, not exact string match)
+5. If match: port is correct. If mismatch: investigate and fix.
+6. Golden files are never edited manually — only regenerated when the contract intentionally changes.
+
+**Golden file rules:**
+- Committed to repo (they are small JSON, not binaries)
+- One golden file per capability × input combination
+- Input files are ME2 OT PCC/TLK files stored in `samples/` (gitignored)
+- Golden files include `schema_version` to detect contract drift
 
 ### Phase 1: Core Skeleton
 1. Create directory structure (`core/`, `cli/`, `gui/`)
