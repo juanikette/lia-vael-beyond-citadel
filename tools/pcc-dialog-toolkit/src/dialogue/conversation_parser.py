@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from model.ast import Conversation, EntryNode, ReplyNode, Speaker
+from model.ast import Conversation, EntryNode, ReplyNode, Speaker, StartNode
 from pcc.models import ExportEntry, PccPackage
 from pcc.reader import _read_i32
 from pcc.properties import (
@@ -178,6 +178,7 @@ def _try_semantic_struct_nodes(
         target = item.get("nIndex") or item.get("nEntryIndex")
         cond_func = item.get("nConditionalFunc")
         cond_param = item.get("nConditionalParam")
+        cat_prop = item.get("Category")
         refs: list[str] = []
         if cond_func and isinstance(cond_func.value, int) and cond_func.value >= 0:
             refs.append(f"cond_func:{cond_func.value}")
@@ -190,6 +191,7 @@ def _try_semantic_struct_nodes(
                 line_text=None,
                 target_entry_id=int(target.value) if target and isinstance(target.value, int) else None,
                 condition_refs=refs,
+                category=str(cat_prop.value) if cat_prop and cat_prop.value is not None else None,
             )
         )
 
@@ -393,6 +395,9 @@ def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conv
     for entry in entries:
         entry.reply_links = links_by_entry.get(entry.id, [])
 
+    start_values = read_array_property_i32_values(package.raw_data, tag_map["StartingList"]) if "StartingList" in tag_map else []
+    starts = [StartNode(id=i, target_entry_id=val) for i, val in enumerate(start_values)]
+
     return Conversation(
         id=export.object_name or f"Export_{export.index}",
         export_index=export.index,
@@ -401,6 +406,7 @@ def parse_bioconversation_stub(package: PccPackage, export: ExportEntry) -> Conv
         entries=entries,
         replies=replies,
         speakers=speakers,
+        starts=starts,
         parse_mode=(
             "struct_property_semantic"
             if semantic_mode

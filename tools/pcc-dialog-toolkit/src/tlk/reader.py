@@ -3,6 +3,7 @@ from __future__ import annotations
 import struct
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterator
 
 
 TLK_MAGIC = 0x006B6C54  # "Tlk " in little-endian
@@ -37,6 +38,28 @@ class TlkFile:
     female_stringrefs: dict[int, int]
     nodes: list[TlkNode]
     bits: bytes
+
+    @property
+    def total_entries(self) -> int:
+        return len(self.male_stringrefs)
+
+    def string_ids(self) -> list[int]:
+        return sorted(self.male_stringrefs.keys())
+
+    def iter_entries(self, male: bool = True) -> Iterator[tuple[int, str]]:
+        lookup = self.male_stringrefs if male else self.female_stringrefs
+        for string_id in sorted(lookup):
+            text = resolve_tlk_string(self, string_id, male=male)
+            if text is not None:
+                yield (string_id, text)
+
+    def search(self, query: str, male: bool = True) -> list[tuple[int, str]]:
+        query_lower = query.casefold()
+        results: list[tuple[int, str]] = []
+        for string_id, text in self.iter_entries(male=male):
+            if query_lower in text.casefold():
+                results.append((string_id, text))
+        return results
 
 
 def _read_i32(data: bytes, offset: int) -> int:

@@ -1,3 +1,3 @@
-from .ast import Conversation, EntryNode, ReplyNode, Speaker
+from .ast import Condition, Conversation, EntryNode, ReplyNode, Speaker, StartNode
 
-__all__ = ["Conversation", "EntryNode", "ReplyNode", "Speaker"]
+__all__ = ["Condition", "Conversation", "EntryNode", "ReplyNode", "Speaker", "StartNode"]

@@ -91,6 +91,46 @@ class PccPackage:
             )
         return rows
 
+    def list_class_names(self) -> list[str]:
+        class_names: set[str] = set()
+        for exp in self.exports:
+            if exp.class_name is not None:
+                class_names.add(exp.class_name)
+        return sorted(class_names)
+
+    def get_exports_by_class(self) -> dict[str, list[ExportEntry]]:
+        result: dict[str, list[ExportEntry]] = {}
+        for exp in self.exports:
+            if exp.class_name is None:
+                continue
+            result.setdefault(exp.class_name, []).append(exp)
+        return result
+
+    def get_export_data(self, export_index: int) -> bytes:
+        if export_index < 0 or export_index >= len(self.exports):
+            raise IndexError(f"Export index {export_index} out of range")
+        exp = self.exports[export_index]
+        start = exp.serial_offset
+        end = start + exp.serial_size
+        if start < 0 or end > len(self.raw_data):
+            return b""
+        return self.raw_data[start:end]
+
+    def inspect_export_properties(self, export_index: int) -> dict[str, object] | None:
+        from .unreal_props import ParsedProperty, parse_property_collection
+
+        exp = self.exports[export_index]
+        raw = self.get_export_data(export_index)
+        if not raw:
+            return None
+        try:
+            props, _ = parse_property_collection(
+                raw, self.names, start_offset=0, max_size=len(raw)
+            )
+        except Exception:
+            return None
+        return {name: p.value for name, p in props.items()}
+
     def resolve_object_ref(self, ref: int) -> dict[str, int | str | None]:
         if ref == 0:
             return {"ref": ref, "kind": "none", "index": None, "name": None, "class": None}

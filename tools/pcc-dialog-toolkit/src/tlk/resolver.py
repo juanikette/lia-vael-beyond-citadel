@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import replace
 from pathlib import Path
+from typing import Iterator
 
 from model.ast import Conversation
 
@@ -89,6 +90,31 @@ class TlkResolver:
             if value is not None:
                 return value
         return None
+
+    def iter_all_entries(self) -> Iterator[tuple[int, str, str]]:
+        seen: set[int] = set()
+        for tlk in self._files:
+            for string_id, text in tlk.iter_entries(male=True):
+                if string_id not in seen:
+                    seen.add(string_id)
+                    yield (string_id, text, tlk.path)
+
+    @property
+    def total_unique_entries(self) -> int:
+        seen: set[int] = set()
+        for tlk in self._files:
+            seen.update(tlk.male_stringrefs.keys())
+        return len(seen)
+
+    def search(self, query: str) -> list[tuple[int, str, str]]:
+        seen: set[int] = set()
+        results: list[tuple[int, str, str]] = []
+        for tlk in self._files:
+            for string_id, text in tlk.search(query, male=True):
+                if string_id not in seen:
+                    seen.add(string_id)
+                    results.append((string_id, text, tlk.path))
+        return results
 
 
 def build_tlk_resolver(

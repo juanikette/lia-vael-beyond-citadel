@@ -179,8 +179,9 @@ def extract_bioconversation_key_properties(data: bytes, names: list[NameEntry], 
         "ReplyListNew": "ReplyList",
         "SpeakerList": "SpeakerList",
         "m_SpeakerList": "SpeakerList",
+        "m_StartingList": "StartingList",
     }
-    key_props = {"EntryList", "ReplyList", "SpeakerList"}
+    key_props = {"EntryList", "ReplyList", "SpeakerList", "StartingList"}
     parse_errors: list[PccFormatError] = []
     best_key_tags: dict[str, PropertyTag] = {}
     best_key_score = -10**9
@@ -249,7 +250,7 @@ def extract_bioconversation_key_properties(data: bytes, names: list[NameEntry], 
             best_key_tags[tag.name] = tag
 
     if best_key_tags:
-        return [best_key_tags[key] for key in ("EntryList", "ReplyList", "SpeakerList") if key in best_key_tags]
+        return [best_key_tags[key] for key in ("EntryList", "ReplyList", "SpeakerList", "StartingList") if key in best_key_tags]
 
     if parse_errors:
         raise parse_errors[0]
@@ -272,6 +273,8 @@ def _scan_bioconversation_key_properties_fuzzy(
         "ReplyListNew": "ReplyList",
         "SpeakerList": "SpeakerList",
         "m_SpeakerList": "SpeakerList",
+        "StartingList": "StartingList",
+        "m_StartingList": "StartingList",
     }
 
     key_name_indices: dict[int, str] = {}
@@ -361,10 +364,10 @@ def _scan_bioconversation_key_properties_fuzzy(
             value_offset=chosen_value_offset,
         )
 
-        if len(found) == 3:
+        if len(found) == 4:
             break
 
-    return [found[key] for key in ("EntryList", "ReplyList", "SpeakerList") if key in found]
+    return [found[key] for key in ("EntryList", "ReplyList", "SpeakerList", "StartingList") if key in found]
 
 
 def extract_bioconversation_property_tags(data: bytes, names: list[NameEntry], export: ExportEntry) -> list[PropertyTag]:

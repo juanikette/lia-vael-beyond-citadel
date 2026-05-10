@@ -21,6 +21,7 @@ class ReplyNode:
     line_text: str | None
     target_entry_id: int | None
     condition_refs: list[str]
+    category: str | None = None
 
 
 @dataclass(slots=True)
@@ -28,6 +29,21 @@ class Speaker:
     id: int
     tag: str | None
     display_name: str | None
+
+
+@dataclass(slots=True)
+class Condition:
+    func_ref: int | None = None
+    param: int | None = None
+    func_name: str | None = None
+
+
+
+@dataclass(slots=True)
+class StartNode:
+    id: int
+    target_entry_id: int | None
+    label: str | None = None
 
 
 @dataclass(slots=True)
@@ -39,6 +55,7 @@ class Conversation:
     entries: list[EntryNode]
     replies: list[ReplyNode]
     speakers: list[Speaker]
+    starts: list[StartNode]
     parse_mode: str
     warnings: list[str]
 

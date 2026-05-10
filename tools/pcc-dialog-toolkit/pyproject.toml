@@ -14,9 +14,11 @@ dependencies = ["lzallright>=0.2.6"]
 
 [project.optional-dependencies]
 dev = ["pytest>=9.0"]
+gui = ["imgui-bundle>=1.90"]
 
 [project.scripts]
 pcc_dialog_extract = "cli:main"
+pcc_dialog_viewer = "gui:main"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
